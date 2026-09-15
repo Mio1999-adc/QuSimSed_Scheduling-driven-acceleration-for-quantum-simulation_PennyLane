@@ -169,3 +169,66 @@ QuSim-Sed: Scheduling-Driven Acceleration for PennyLane-based
 Hybrid Classical Quantum Simulation on GPU.
 (Working paper — SC'26 submission draft.)
 ```
+
+---
+
+## 7. Experiment-review revision scaffold
+
+The original benchmark scripts are useful references but do not themselves
+prove the multi-stream and CDS claims: their `ThreadPoolExecutor`/`vmap`
+paths are scheduling proxies. The new `qusimsed/` package adds a real,
+dependency-correct `RecordPool` scheduler, resource accounting, timestamped
+traces, numerical-error metrics, metadata-memory measurement, and a
+capability-gated Nsight entry point. It deliberately labels host-thread traces
+as host-thread traces; they are not presented as CUDA kernel overlap.
+
+```powershell
+# framework-independent unit tests and an observed CDS trace
+python -m unittest discover -s tests -v
+python -m qusimsed.demo --output-dir results/demo --streams 2
+
+# GPU-only PennyLane correctness validation (no CPU fallback)
+pip install -r requirements-gpu.txt
+python -m qusimsed.gpu_correctness --qubits 4 --layers 2
+
+# Review artifacts: live memory snapshot and Nsight report/availability manifest
+python -m qusimsed.collectors memory-demo
+python -m qusimsed.collectors nsight --output results/nsight/vqc -- python -m qusimsed.gpu_correctness --qubits 4 --layers 2
+
+# optional UI (requires: pip install streamlit)
+streamlit run app/streamlit_app.py
+```
+
+The demo writes JSON/CSV trace data plus `stream_timeline.svg` and
+`scheduler_workflow.svg`. For the reviewer mapping, supported experiment
+matrix, and the paper/code gap analysis, see
+[`docs/EXPERIMENT_REVIEW_PLAN.md`](docs/EXPERIMENT_REVIEW_PLAN.md).
+
+`qusimsed.runtime.detect_runtime()` selects `cuda-streams` only if a usable
+CUDA Python runtime is detected. If a GPU driver is missing or the installed
+Python packages cannot use CUDA, QuSim-Sed continues in `cpu-threads` mode.
+That mode uses the same dependency/resource scheduler with CPU worker threads,
+and its trace is explicitly labelled `host-thread`, never `CUDA stream`.
+
+The Streamlit app also runs two reviewer-focused experiments when PennyLane is
+installed: (1) per-method numerical errors for expectation, gradients, loss,
+and parameter updates; and (2) timing/speedup comparison of Sequential,
+Batched Parameter-shift, Naive Multi-stream, and QuSim-Sed. Each method uses
+the same deterministic full-width VQC and initial workload.
+
+The **Real QML benchmarks** tab provides Iris, Wine, Breast Cancer, and binary
+PCA-MNIST (digits 3 versus 5). It records train time, test loss, test accuracy,
+speedup, and deviations from the Sequential training trajectory. These are
+secondary application validations; retain the synthetic workload as the primary
+controlled scheduling benchmark.
+
+Before reporting GPU utilization, kernel overlap, CUDA stream overlap, or
+speedup values from the revised framework, run the identical PennyLane workload
+on the target GPU and retain the Nsight `.nsys-rep` artifact. If `nsys` is not
+available, the framework reports that fact and does not infer profiling data.
+
+## 8. Environment and reproducible run guide
+
+See [Environment and run guide](docs/ENVIRONMENT_AND_RUN_GUIDE.md) for supported
+platforms, GPU installation/verification, unit-test and collector commands,
+Nsight collection, and Streamlit operation.

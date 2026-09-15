@@ -1,0 +1,6 @@
+task_id,graph_type,node_type,stream_id,start_ns,end_ns,dependencies,memory_bytes,executor,cuda_stream_id,error
+encode,circuit,encoding,0,2319105407400,2319109519200,[],1024,host-thread,,
+shift_0_minus,circuit,shift,1,2319109622000,2319113719200,['encode'],1024,host-thread,,
+shift_0_plus,circuit,shift,0,2319109575100,2319113995700,['encode'],1024,host-thread,,
+gradient_0,autograd,gradient,0,2319114026100,2319117393800,"['shift_0_minus', 'shift_0_plus']",1024,host-thread,,
+update,autograd,optimizer,0,2319117442300,2319120989100,['gradient_0'],1024,host-thread,,

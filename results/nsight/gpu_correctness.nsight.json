@@ -1,0 +1,19 @@
+{
+  "command": [
+    "python",
+    "-m",
+    "qusimsed.gpu_correctness",
+    "--qubits",
+    "4",
+    "--layers",
+    "2"
+  ],
+  "output_base": "results\\nsight\\gpu_correctness",
+  "nsight": {
+    "available": false,
+    "executable": null,
+    "message": "Nsight Systems (nsys) is not on PATH; no kernel-overlap claim can be made"
+  },
+  "collected": false,
+  "reason": "Nsight Systems (nsys) is not on PATH; no kernel-overlap claim can be made"
+}

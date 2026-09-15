@@ -1,0 +1,76 @@
+[
+  {
+    "task_id": "encode",
+    "graph_type": "circuit",
+    "node_type": "encoding",
+    "stream_id": 0,
+    "start_ns": 5130231128400,
+    "end_ns": 5130234867400,
+    "dependencies": [],
+    "memory_bytes": 1024,
+    "executor": "host-thread",
+    "cuda_stream_id": null,
+    "error": null
+  },
+  {
+    "task_id": "shift_0_plus",
+    "graph_type": "circuit",
+    "node_type": "shift",
+    "stream_id": 0,
+    "start_ns": 5130234896100,
+    "end_ns": 5130238099300,
+    "dependencies": [
+      "encode"
+    ],
+    "memory_bytes": 1024,
+    "executor": "host-thread",
+    "cuda_stream_id": null,
+    "error": null
+  },
+  {
+    "task_id": "shift_0_minus",
+    "graph_type": "circuit",
+    "node_type": "shift",
+    "stream_id": 1,
+    "start_ns": 5130234916100,
+    "end_ns": 5130238566700,
+    "dependencies": [
+      "encode"
+    ],
+    "memory_bytes": 1024,
+    "executor": "host-thread",
+    "cuda_stream_id": null,
+    "error": null
+  },
+  {
+    "task_id": "gradient_0",
+    "graph_type": "autograd",
+    "node_type": "gradient",
+    "stream_id": 0,
+    "start_ns": 5130238580500,
+    "end_ns": 5130242119800,
+    "dependencies": [
+      "shift_0_minus",
+      "shift_0_plus"
+    ],
+    "memory_bytes": 1024,
+    "executor": "host-thread",
+    "cuda_stream_id": null,
+    "error": null
+  },
+  {
+    "task_id": "update",
+    "graph_type": "autograd",
+    "node_type": "optimizer",
+    "stream_id": 0,
+    "start_ns": 5130242135000,
+    "end_ns": 5130245630000,
+    "dependencies": [
+      "gradient_0"
+    ],
+    "memory_bytes": 1024,
+    "executor": "host-thread",
+    "cuda_stream_id": null,
+    "error": null
+  }
+]

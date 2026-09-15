@@ -1,0 +1,30 @@
+{
+  "workload": "CDS construction only (not a PennyLane baseline)",
+  "cds_metadata": {
+    "cds_bytes": 9098,
+    "scheduler_metadata_bytes": 0,
+    "total_metadata_bytes": 9098,
+    "nodes": 5,
+    "bytes_per_node": 1819.6
+  },
+  "live_measurement": {
+    "before": {
+      "process_rss_bytes": 256086016,
+      "cuda_allocated_bytes": null,
+      "cuda_reserved_bytes": null,
+      "cuda_peak_allocated_bytes": null,
+      "cuda_peak_reserved_bytes": null
+    },
+    "after": {
+      "process_rss_bytes": 228716544,
+      "cuda_allocated_bytes": null,
+      "cuda_reserved_bytes": null,
+      "cuda_peak_allocated_bytes": null,
+      "cuda_peak_reserved_bytes": null
+    },
+    "python_tracemalloc_current_bytes": 61316318,
+    "python_tracemalloc_peak_bytes": 61338232,
+    "process_rss_delta_bytes": -27369472,
+    "cuda_allocated_delta_bytes": null
+  }
+}

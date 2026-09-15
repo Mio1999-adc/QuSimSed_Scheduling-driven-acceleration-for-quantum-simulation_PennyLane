@@ -1,0 +1,5 @@
+# Install into a CUDA-compatible environment that matches the local CUDA driver.
+# Consult the PennyLane-Lightning-GPU and JAX installation matrices for versions.
+pennylane
+pennylane-lightning[gpu]
+numpy

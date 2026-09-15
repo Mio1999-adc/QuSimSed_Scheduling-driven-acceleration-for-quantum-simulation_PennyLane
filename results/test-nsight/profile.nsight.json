@@ -1,0 +1,14 @@
+{
+  "command": [
+    "python",
+    "--version"
+  ],
+  "output_base": "results\\test-nsight\\profile",
+  "nsight": {
+    "available": false,
+    "executable": null,
+    "message": "Nsight Systems (nsys) is not on PATH; no kernel-overlap claim can be made"
+  },
+  "collected": false,
+  "reason": "Nsight Systems (nsys) is not on PATH; no kernel-overlap claim can be made"
+}

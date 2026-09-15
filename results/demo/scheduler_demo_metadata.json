@@ -1,0 +1,52 @@
+{
+  "config": {
+    "qubits": 4,
+    "layers": 2,
+    "differentiation": "parameter-shift",
+    "strategy": "qusimsed",
+    "workload": "synthetic",
+    "seed": 7,
+    "warmup": 1,
+    "iterations": 10,
+    "streams": 2,
+    "memory_safety_factor": 0.8,
+    "batch_size": 4,
+    "samples": 16,
+    "learning_rate": 0.05,
+    "enable_trace": true,
+    "enable_nsight": false,
+    "output_dir": "results/demo"
+  },
+  "system": {
+    "python": "3.12.14",
+    "platform": "Windows-11-10.0.22631-SP0"
+  },
+  "scheduler": {
+    "tasks": 5,
+    "cuda_tasks": 0,
+    "logical_streams": 2,
+    "cuda_streams": 0,
+    "sum_task_ns": 18908500,
+    "makespan_ns": 15286300,
+    "host_overlap_ratio": 1.236957275468884,
+    "gpu_evidence": false
+  },
+  "memory": {
+    "cds_bytes": 9059,
+    "scheduler_metadata_bytes": 12513,
+    "total_metadata_bytes": 21572,
+    "nodes": 5,
+    "bytes_per_node": 4314.4
+  },
+  "nsight": {
+    "available": false,
+    "executable": null,
+    "message": "Nsight Systems (nsys) is not on PATH; no kernel-overlap claim can be made"
+  },
+  "artifacts": [
+    "scheduler_trace.json",
+    "scheduler_trace.csv",
+    "stream_timeline.svg",
+    "scheduler_workflow.svg"
+  ]
+}
