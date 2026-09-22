@@ -1,0 +1,1263 @@
+{
+  "backend": "torch-cpu-statevector-validation",
+  "reference_backend": "default.qubit",
+  "runtime": {
+    "nvidia_driver_visible": false,
+    "gpu_name": null,
+    "torch_cuda_usable": false,
+    "pennylane_lightning_gpu_usable": false,
+    "selected_mode": "cpu-threads",
+    "reason": "No NVIDIA GPU detected; using CPU worker threads."
+  },
+  "configuration": {
+    "qubits": 2,
+    "layers": 1,
+    "differentiation": "adjoint",
+    "strategy": "qusimsed",
+    "workload": "synthetic",
+    "seed": 7,
+    "warmup": 1,
+    "iterations": 10,
+    "streams": 4,
+    "memory_safety_factor": 0.8,
+    "batch_size": 4,
+    "samples": 16,
+    "learning_rate": 0.05,
+    "enable_trace": true,
+    "enable_nsight": false,
+    "output_dir": "results",
+    "collect_results": true,
+    "execution_backend": "torch-cpu",
+    "gpu_device": 0,
+    "memory_budget_bytes": null,
+    "sm_demand": null,
+    "partition_size": 16,
+    "affinity_weight": 1.0,
+    "sync_weight": 1.0,
+    "trainable_parameters": null,
+    "reference_backend": "default.qubit"
+  },
+  "rows": [
+    {
+      "method": "Sequential",
+      "gradient_max_abs": 4.440892098500626e-16,
+      "expectation_max_abs": 1.1102230246251565e-16,
+      "parameters_max_abs": 1.3877787807814457e-17,
+      "loss_max_abs": 1.1102230246251565e-16,
+      "gradient_max_rel": 1.8638177398996927e-05,
+      "expectation_max_rel": 4.086949998817016e-16,
+      "parameters_max_rel": 2.2033882318222733e-16,
+      "loss_max_rel": 2.0928151610388567e-16,
+      "gradient_mean_abs": 8.051564671925342e-17,
+      "expectation_mean_abs": 1.1102230246251565e-16,
+      "parameters_mean_abs": 2.3174821436877657e-18,
+      "loss_mean_abs": 1.1102230246251565e-16,
+      "gradient_rmse": 1.8156490892892883e-16,
+      "expectation_rmse": 1.1102230246251565e-16,
+      "parameters_rmse": 5.665593954192459e-18,
+      "loss_rmse": 1.1102230246251565e-16,
+      "all_within_tolerance": true
+    },
+    {
+      "method": "QuSim-Sed",
+      "gradient_max_abs": 4.440892098500626e-16,
+      "expectation_max_abs": 1.1102230246251565e-16,
+      "parameters_max_abs": 1.3877787807814457e-17,
+      "loss_max_abs": 1.1102230246251565e-16,
+      "gradient_max_rel": 1.8638177398996927e-05,
+      "expectation_max_rel": 4.086949998817016e-16,
+      "parameters_max_rel": 2.2033882318222733e-16,
+      "loss_max_rel": 2.0928151610388567e-16,
+      "gradient_mean_abs": 8.051564671925342e-17,
+      "expectation_mean_abs": 1.1102230246251565e-16,
+      "parameters_mean_abs": 2.3174821436877657e-18,
+      "loss_mean_abs": 1.1102230246251565e-16,
+      "gradient_rmse": 1.8156490892892883e-16,
+      "expectation_rmse": 1.1102230246251565e-16,
+      "parameters_rmse": 5.665593954192459e-18,
+      "loss_rmse": 1.1102230246251565e-16,
+      "all_within_tolerance": true
+    }
+  ],
+  "traces": {
+    "Sequential": [
+      {
+        "task_id": "parameters/input",
+        "graph_type": "autograd",
+        "node_type": "parameters",
+        "stream_id": 0,
+        "start_ns": 1628724043224993,
+        "end_ns": 1628724043436379,
+        "dependencies": [],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/init",
+        "graph_type": "circuit",
+        "node_type": "state-init",
+        "stream_id": 0,
+        "start_ns": 1628724043447412,
+        "end_ns": 1628724043571674,
+        "dependencies": [],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00000",
+        "graph_type": "circuit",
+        "node_type": "RY",
+        "stream_id": 0,
+        "start_ns": 1628724043581343,
+        "end_ns": 1628724043698440,
+        "dependencies": [
+          "forward/init"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00001",
+        "graph_type": "circuit",
+        "node_type": "RY",
+        "stream_id": 0,
+        "start_ns": 1628724043706741,
+        "end_ns": 1628724043830874,
+        "dependencies": [
+          "forward/gate_00000"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00002",
+        "graph_type": "circuit",
+        "node_type": "RX",
+        "stream_id": 0,
+        "start_ns": 1628724043838610,
+        "end_ns": 1628724043899527,
+        "dependencies": [
+          "forward/gate_00000",
+          "forward/gate_00001"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00003",
+        "graph_type": "circuit",
+        "node_type": "RY",
+        "stream_id": 0,
+        "start_ns": 1628724043908996,
+        "end_ns": 1628724043968283,
+        "dependencies": [
+          "forward/gate_00002"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00004",
+        "graph_type": "circuit",
+        "node_type": "RZ",
+        "stream_id": 0,
+        "start_ns": 1628724043979752,
+        "end_ns": 1628724044045208,
+        "dependencies": [
+          "forward/gate_00003"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00005",
+        "graph_type": "circuit",
+        "node_type": "RX",
+        "stream_id": 0,
+        "start_ns": 1628724044055105,
+        "end_ns": 1628724044122060,
+        "dependencies": [
+          "forward/gate_00001",
+          "forward/gate_00004"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00006",
+        "graph_type": "circuit",
+        "node_type": "RY",
+        "stream_id": 0,
+        "start_ns": 1628724044129981,
+        "end_ns": 1628724044191878,
+        "dependencies": [
+          "forward/gate_00005"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00007",
+        "graph_type": "circuit",
+        "node_type": "RZ",
+        "stream_id": 0,
+        "start_ns": 1628724044198999,
+        "end_ns": 1628724044259744,
+        "dependencies": [
+          "forward/gate_00006"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00008",
+        "graph_type": "circuit",
+        "node_type": "CNOT",
+        "stream_id": 0,
+        "start_ns": 1628724044271367,
+        "end_ns": 1628724044382476,
+        "dependencies": [
+          "forward/gate_00004",
+          "forward/gate_00007"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00009",
+        "graph_type": "circuit",
+        "node_type": "CNOT",
+        "stream_id": 0,
+        "start_ns": 1628724044391383,
+        "end_ns": 1628724044454736,
+        "dependencies": [
+          "forward/gate_00008"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/measurement",
+        "graph_type": "circuit",
+        "node_type": "expectation",
+        "stream_id": 0,
+        "start_ns": 1628724044462467,
+        "end_ns": 1628724044534450,
+        "dependencies": [
+          "forward/gate_00009"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "training/sub",
+        "graph_type": "autograd",
+        "node_type": "fx:call_function",
+        "stream_id": 0,
+        "start_ns": 1628724044543671,
+        "end_ns": 1628724044593970,
+        "dependencies": [
+          "forward/measurement"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "training/mul_1",
+        "graph_type": "autograd",
+        "node_type": "fx:call_function",
+        "stream_id": 0,
+        "start_ns": 1628724044603641,
+        "end_ns": 1628724044654656,
+        "dependencies": [
+          "training/sub"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "training/mul",
+        "graph_type": "autograd",
+        "node_type": "fx:call_function",
+        "stream_id": 0,
+        "start_ns": 1628724044662335,
+        "end_ns": 1628724044699831,
+        "dependencies": [
+          "training/sub"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00009",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724044706217,
+        "end_ns": 1628724044809631,
+        "dependencies": [
+          "forward/measurement"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00008",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724044816647,
+        "end_ns": 1628724044894008,
+        "dependencies": [
+          "forward/reverse_00009"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00007",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724044901060,
+        "end_ns": 1628724045082783,
+        "dependencies": [
+          "forward/reverse_00008"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00006",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724045096741,
+        "end_ns": 1628724045239188,
+        "dependencies": [
+          "forward/reverse_00007"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00005",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724045248970,
+        "end_ns": 1628724045383409,
+        "dependencies": [
+          "forward/reverse_00006"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00004",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724045391477,
+        "end_ns": 1628724045505099,
+        "dependencies": [
+          "forward/reverse_00005"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00003",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724045512857,
+        "end_ns": 1628724045624283,
+        "dependencies": [
+          "forward/reverse_00004"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00002",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724045631675,
+        "end_ns": 1628724045741872,
+        "dependencies": [
+          "forward/reverse_00003"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "gradient/stack",
+        "graph_type": "autograd",
+        "node_type": "gradient-stack",
+        "stream_id": 0,
+        "start_ns": 1628724045751926,
+        "end_ns": 1628724045799883,
+        "dependencies": [
+          "forward/reverse_00002",
+          "forward/reverse_00003",
+          "forward/reverse_00004",
+          "forward/reverse_00005",
+          "forward/reverse_00006",
+          "forward/reverse_00007"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "training/mul_2",
+        "graph_type": "autograd",
+        "node_type": "fx:call_function",
+        "stream_id": 0,
+        "start_ns": 1628724045808890,
+        "end_ns": 1628724045848533,
+        "dependencies": [
+          "gradient/stack",
+          "training/mul_1"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "training/mul_3",
+        "graph_type": "autograd",
+        "node_type": "fx:call_function",
+        "stream_id": 0,
+        "start_ns": 1628724045856771,
+        "end_ns": 1628724045895989,
+        "dependencies": [
+          "training/mul_2"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "training/sub_1",
+        "graph_type": "autograd",
+        "node_type": "fx:call_function",
+        "stream_id": 0,
+        "start_ns": 1628724045903802,
+        "end_ns": 1628724045941957,
+        "dependencies": [
+          "parameters/input",
+          "training/mul_3"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "training/output",
+        "graph_type": "autograd",
+        "node_type": "fx:output",
+        "stream_id": 0,
+        "start_ns": 1628724045950042,
+        "end_ns": 1628724045979876,
+        "dependencies": [
+          "training/mul",
+          "training/mul_2",
+          "training/sub_1"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00001",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724045986320,
+        "end_ns": 1628724046087961,
+        "dependencies": [
+          "forward/reverse_00002"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00000",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724046095913,
+        "end_ns": 1628724046173299,
+        "dependencies": [
+          "forward/reverse_00001"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/release",
+        "graph_type": "autograd",
+        "node_type": "release-adjoint-state",
+        "stream_id": 0,
+        "start_ns": 1628724046180256,
+        "end_ns": 1628724046209950,
+        "dependencies": [
+          "forward/reverse_00000"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      }
+    ],
+    "QuSim-Sed": [
+      {
+        "task_id": "parameters/input",
+        "graph_type": "autograd",
+        "node_type": "parameters",
+        "stream_id": 0,
+        "start_ns": 1628724055809402,
+        "end_ns": 1628724056030933,
+        "dependencies": [],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/init",
+        "graph_type": "circuit",
+        "node_type": "state-init",
+        "stream_id": 0,
+        "start_ns": 1628724056043434,
+        "end_ns": 1628724056133393,
+        "dependencies": [],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00000",
+        "graph_type": "circuit",
+        "node_type": "RY",
+        "stream_id": 0,
+        "start_ns": 1628724056145655,
+        "end_ns": 1628724056253246,
+        "dependencies": [
+          "forward/init"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00001",
+        "graph_type": "circuit",
+        "node_type": "RY",
+        "stream_id": 0,
+        "start_ns": 1628724056269527,
+        "end_ns": 1628724056387653,
+        "dependencies": [
+          "forward/gate_00000"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00002",
+        "graph_type": "circuit",
+        "node_type": "RX",
+        "stream_id": 0,
+        "start_ns": 1628724056404443,
+        "end_ns": 1628724056465903,
+        "dependencies": [
+          "forward/gate_00000",
+          "forward/gate_00001"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00003",
+        "graph_type": "circuit",
+        "node_type": "RY",
+        "stream_id": 0,
+        "start_ns": 1628724056477146,
+        "end_ns": 1628724056532021,
+        "dependencies": [
+          "forward/gate_00002"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00004",
+        "graph_type": "circuit",
+        "node_type": "RZ",
+        "stream_id": 0,
+        "start_ns": 1628724056541951,
+        "end_ns": 1628724056595992,
+        "dependencies": [
+          "forward/gate_00003"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00005",
+        "graph_type": "circuit",
+        "node_type": "RX",
+        "stream_id": 0,
+        "start_ns": 1628724056606559,
+        "end_ns": 1628724056668954,
+        "dependencies": [
+          "forward/gate_00001",
+          "forward/gate_00004"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00006",
+        "graph_type": "circuit",
+        "node_type": "RY",
+        "stream_id": 0,
+        "start_ns": 1628724056678575,
+        "end_ns": 1628724056740341,
+        "dependencies": [
+          "forward/gate_00005"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00007",
+        "graph_type": "circuit",
+        "node_type": "RZ",
+        "stream_id": 0,
+        "start_ns": 1628724056749851,
+        "end_ns": 1628724056816324,
+        "dependencies": [
+          "forward/gate_00006"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00008",
+        "graph_type": "circuit",
+        "node_type": "CNOT",
+        "stream_id": 0,
+        "start_ns": 1628724056827273,
+        "end_ns": 1628724056901478,
+        "dependencies": [
+          "forward/gate_00004",
+          "forward/gate_00007"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/gate_00009",
+        "graph_type": "circuit",
+        "node_type": "CNOT",
+        "stream_id": 0,
+        "start_ns": 1628724056912815,
+        "end_ns": 1628724056978936,
+        "dependencies": [
+          "forward/gate_00008"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/measurement",
+        "graph_type": "circuit",
+        "node_type": "expectation",
+        "stream_id": 0,
+        "start_ns": 1628724056987972,
+        "end_ns": 1628724057082543,
+        "dependencies": [
+          "forward/gate_00009"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_0",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "training/sub",
+        "graph_type": "autograd",
+        "node_type": "fx:call_function",
+        "stream_id": 0,
+        "start_ns": 1628724057096451,
+        "end_ns": 1628724057200335,
+        "dependencies": [
+          "forward/measurement"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "training/mul_1",
+        "graph_type": "autograd",
+        "node_type": "fx:call_function",
+        "stream_id": 0,
+        "start_ns": 1628724057222900,
+        "end_ns": 1628724057300627,
+        "dependencies": [
+          "training/sub"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "training/mul",
+        "graph_type": "autograd",
+        "node_type": "fx:call_function",
+        "stream_id": 0,
+        "start_ns": 1628724057313606,
+        "end_ns": 1628724057354563,
+        "dependencies": [
+          "training/sub"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00009",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724057363127,
+        "end_ns": 1628724057495844,
+        "dependencies": [
+          "forward/measurement"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00008",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724057505953,
+        "end_ns": 1628724057589106,
+        "dependencies": [
+          "forward/reverse_00009"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00007",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724057598505,
+        "end_ns": 1628724057738317,
+        "dependencies": [
+          "forward/reverse_00008"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00006",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724057747790,
+        "end_ns": 1628724057879168,
+        "dependencies": [
+          "forward/reverse_00007"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00005",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724057888164,
+        "end_ns": 1628724058026302,
+        "dependencies": [
+          "forward/reverse_00006"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00004",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724058035816,
+        "end_ns": 1628724058153319,
+        "dependencies": [
+          "forward/reverse_00005"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00003",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724058162754,
+        "end_ns": 1628724058274656,
+        "dependencies": [
+          "forward/reverse_00004"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00002",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724058283943,
+        "end_ns": 1628724058393781,
+        "dependencies": [
+          "forward/reverse_00003"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "gradient/stack",
+        "graph_type": "autograd",
+        "node_type": "gradient-stack",
+        "stream_id": 0,
+        "start_ns": 1628724058407850,
+        "end_ns": 1628724058457306,
+        "dependencies": [
+          "forward/reverse_00002",
+          "forward/reverse_00003",
+          "forward/reverse_00004",
+          "forward/reverse_00005",
+          "forward/reverse_00006",
+          "forward/reverse_00007"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "training/mul_2",
+        "graph_type": "autograd",
+        "node_type": "fx:call_function",
+        "stream_id": 0,
+        "start_ns": 1628724058469804,
+        "end_ns": 1628724058511317,
+        "dependencies": [
+          "gradient/stack",
+          "training/mul_1"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "training/mul_3",
+        "graph_type": "autograd",
+        "node_type": "fx:call_function",
+        "stream_id": 0,
+        "start_ns": 1628724058522900,
+        "end_ns": 1628724058564138,
+        "dependencies": [
+          "training/mul_2"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "training/sub_1",
+        "graph_type": "autograd",
+        "node_type": "fx:call_function",
+        "stream_id": 0,
+        "start_ns": 1628724058575313,
+        "end_ns": 1628724058615794,
+        "dependencies": [
+          "parameters/input",
+          "training/mul_3"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "training/output",
+        "graph_type": "autograd",
+        "node_type": "fx:output",
+        "stream_id": 0,
+        "start_ns": 1628724058627800,
+        "end_ns": 1628724058659807,
+        "dependencies": [
+          "training/mul",
+          "training/mul_2",
+          "training/sub_1"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_2",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00001",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724058668177,
+        "end_ns": 1628724058764430,
+        "dependencies": [
+          "forward/reverse_00002"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/reverse_00000",
+        "graph_type": "autograd",
+        "node_type": "adjoint-reverse",
+        "stream_id": 0,
+        "start_ns": 1628724058773344,
+        "end_ns": 1628724058848870,
+        "dependencies": [
+          "forward/reverse_00001"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      },
+      {
+        "task_id": "forward/release",
+        "graph_type": "autograd",
+        "node_type": "release-adjoint-state",
+        "stream_id": 0,
+        "start_ns": 1628724058857444,
+        "end_ns": 1628724058890127,
+        "dependencies": [
+          "forward/reverse_00000"
+        ],
+        "memory_bytes": 0,
+        "executor": "host-thread",
+        "cuda_stream_id": null,
+        "error": null,
+        "subgraph_id": "subgraph_1",
+        "sm_demand": 1.0,
+        "cross_stream_dependencies": 0
+      }
+    ]
+  },
+  "collection": {
+    "directory": "/home/hpclab-lananh/QuSimSed_Scheduling-driven-acceleration-for-quantum-simulation_PennyLane/results/experiments/20260922T040641.563343Z-correctness-226f33b3",
+    "result": "/home/hpclab-lananh/QuSimSed_Scheduling-driven-acceleration-for-quantum-simulation_PennyLane/results/experiments/20260922T040641.563343Z-correctness-226f33b3/result.json"
+  },
+  "run_kind": "correctness",
+  "status": "completed",
+  "validation_scope": "independent numerical reference"
+}

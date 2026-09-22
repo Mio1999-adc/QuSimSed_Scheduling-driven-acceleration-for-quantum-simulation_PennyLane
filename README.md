@@ -1,234 +1,732 @@
-# QuSim-Sed — Scheduling-Driven Acceleration for Hybrid Classical-Quantum Simulation on GPU with PennyLane
+# QuSim-Sed: Scheduling-Driven Acceleration for Hybrid Quantum-Classical Simulation on GPUs
 
-This repository accompanies the paper **"QuSim-Sed: Scheduling-Driven Acceleration for PennyLane-based Hybrid Classical Quantum Simulation on GPU"** and contains the benchmark code, Catalyst comparison, and an interactive console used to reproduce and explore its results.
+QuSim-Sed coordinates quantum-circuit execution and classical gradient work
+through a Coordinating Data Structure (CDS). The maintained implementation
+extracts PennyLane tape dependencies and Torch FX arithmetic graphs, then
+schedules ready operations subject to memory and estimated SM capacity.
 
----
+**For training with a remote dashboard, start with `python -m qusimsed.train`.**
+See [training and SSH access](#interactive-ui-and-scheduler-diagnostics) for
+the server command and local tunnel. Use `python -m qusimsed.server_benchmark`
+for controlled correctness checks and synthetic timing.
+The current GPU executor is
+`torch-cuda-statevector`: it executes PennyLane tapes using complex128 Torch
+CUDA kernels on scheduler-owned streams. It is a separate backend from
+Lightning-GPU/cuStateVec and the older JAX/Catalyst benchmark scripts.
 
-## 1. Paper overview
+Local validation has covered numerical agreement with PennyLane, dependencies,
+resource admission, and application training. **GPU-server kernel overlap,
+resource calibration, and performance still require validation.** The paper's
+reported speedups are not measurements of this new executor.
 
-### The problem
-Variational Quantum Circuit (VQC) training on GPUs alternates between two phases every iteration:
+## Current features
 
-- **Forward / Circuit Graph** — encode input, run the parameterized circuit, measure an expectation value.
-- **Backward / AutoGrad Graph** — differentiate (parameter-shift or adjoint), aggregate gradients, update parameters.
-
-Frameworks like PennyLane, TorchQuantum, and TensorFlow Quantum execute these two graphs **sequentially and on a single CUDA stream**: `T = T_enc → T_fwd → T_grad → T_opt`. Even though parameter-shift gradients require `2P` circuit evaluations that are mathematically *independent* of one another, the framework dispatches them one at a time with a synchronization barrier between the forward and backward phase. The result: idle SMs, low kernel overlap, and a GPU that is only nominally "GPU-accelerated."
-
-### The idea
-QuSim-Sed adds a **Coordinating Layer** between PennyLane's Circuit Graph (`G_circ`) and AutoGrad Graph (`G_grad`) *without modifying either*. It:
-
-1. Builds a lightweight **Coordinating Data Structure (CDS)** — one `CDSRecord` per node of both graphs, stored in a flat `RecordPool` (constant-time access, negligible memory overhead). Each record tracks `ParentList`/`ChildList` (intra-graph deps), `CrossGraphLinks` (e.g. measurement `M_i` → gradient `G_i`), a `ReadyCounter`, `ExecutionState`, `TargetStream`, `Priority`, and `ResourceMetadata`.
-2. Runs a **single-pass topological scheduler** over the CDS: whenever a node's `ReadyCounter` hits zero, it's pushed onto a ready queue and dispatched asynchronously to a free CUDA stream — regardless of which graph it belongs to. This is what lets an independent shifted-circuit evaluation and a gradient-accumulation step run *concurrently* instead of waiting on a global sync barrier.
-3. Gatekeeps dispatch with **resource-aware scheduling** (Algorithm 2): before launching a task, it estimates the task's memory (`m_state = 2^n × sizeof(complex)`, larger under Adjoint due to retained intermediate states) and only dispatches if `M_allocated + m_req < α·M_total`; otherwise it waits for a running task to finish and free memory. This prevents OOM without needing to shrink the circuit or the qubit count.
-
-### Headline results (NVIDIA A100, 80GB, PennyLane + JAX + Lightning-GPU, Table III setup)
-| Differentiation | Result |
+| Feature | Implemented behavior |
 |---|---|
-| Parameter-shift | Up to **6.24× speedup**, **80.3–83.6%** execution-time reduction vs. sequential PennyLane; consistently beats both Gradient-only and Quantum-only, and consistently beats Catalyst alone (~2.1–2.9× across qubit counts, ~5.15–5.17× across layer depths) |
-| Adjoint | Only **marginal** improvement (~1.06×, <6% time reduction) for every method — the reverse-state propagation's strict forward→backward dependency leaves almost no independent work to schedule concurrently |
-| QuSim-Sed + Catalyst | Combining scheduling (macro-level) with JIT compilation (micro-level) gives the largest gains under parameter-shift (e.g. ~3.6–3.9× at low qubit counts), since the two optimizations are complementary rather than redundant |
+| Circuit metadata extraction | Reads actual tape operations, wire dependencies, measurements, and trainable parameter ownership |
+| Classical graph extraction | Traces parameter-shift reduction and MSE/SGD arithmetic with Torch FX and lowers its dependency edges into CDS tasks |
+| Cross-graph scheduling | Links measurements, gradient reductions, gradient assembly, loss, and parameter updates; successors become ready after predecessor completion |
+| Dependency-preserving partitioning | Groups contiguous topological nodes by state ownership and graph type; preserves individual dependencies without adding partition-wide barriers |
+| Affinity and synchronization costs | Ranks feasible task/stream pairs using priority, aging, affinity, and estimated cross-stream dependency cost |
+| SM-demand admission | Bounds the sum of running tasks' estimated fractions of whole-device SM capacity |
+| GPU memory admission | Uses live allocatable CUDA memory, an optional budget cap, and a safety factor; keeps state/workspace reservations until the owning evaluation finishes |
+| Explicit CUDA execution | Owns CUDA streams, inserts cross-stream event waits, observes device completion before releasing resources, and records tensor stream usage |
+| Parameter-shift | Builds shifted evaluations from PennyLane recipes/frequencies and schedules their reductions as dependencies become ready |
+| Adjoint | Schedules the forward circuit followed by an ordered reverse sweep, uncomputing primal and adjoint states |
+| Correctness and profiling | Compares expectations, loss gradients, losses, and updates against PennyLane; exports traces, NVTX labels, memory estimates, and observed Torch peak allocation |
 
-**Experimental setup (Table III):** qubits `{10, 15, 20, 25}`, layers `{3, 5, 7}`, both differentiation methods, 30 timed iterations after 1 warm-up, synthetic random inputs/parameters (so results reflect *scheduling*, not learning).
+The CDS uses a dictionary indexed by node ID. Each record stores dependencies,
+readiness, execution state, partition/stream assignment, resource estimates,
+and framework metadata. Partitioning supplies scheduling hints; it does not
+fuse kernels. Each independent circuit evaluation owns its state vector, while
+gates updating the same state retain storage-order dependencies.
 
----
+The extracted classical graph is the differentiation/loss arithmetic used by
+this backend. Arbitrary internal JAX or PennyLane Autograd graphs and classical
+Jacobians for shared/transformed QNode arguments are outside the adapter's scope.
+See [Scheduling implementation](docs/SCHEDULING_IMPLEMENTATION.md) for the
+algorithm, memory model, and execution contract.
 
-## 2. New data structures (proposal)
+## Execution backends and available comparisons
 
-This is the core data-structure proposal of the paper: a way to give a scheduler visibility into *both* PennyLane's Circuit Graph and its AutoGrad Graph at once, without touching either graph's own representation. Two structures make this possible.
-
-### 2.1 `CDSRecord` — one record per computation node
-
-Every node of `G_circ` (state init, encoding, variational gates, measurement) and every node of `G_grad` (differentiation op, gradient accumulation, optimizer update) gets exactly one `CDSRecord`:
-
-```
-class CDSRecord:
-    node_id             # unique identifier for this node
-    graph_id            # which graph the node belongs to: Circuit or AutoGrad
-    node_type           # operator kind (e.g. gate, measurement, grad-op, opt-update)
-    parent_list         # intra-graph predecessors (same graph as this node)
-    child_list           # intra-graph successors
-    cross_graph_links    # edges to nodes in the *other* graph (e.g. measurement M_i -> gradient G_i)
-    ready_counter        # unresolved-dependency count; node is dispatchable once this hits 0
-    execution_state       # NotReady / Ready / Running / Done
-    target_stream         # which CUDA stream this node is assigned to
-    priority              # scheduling priority used when multiple nodes are ready at once
-    resource_metadata     # estimated memory footprint / kernel characteristics, for the resource-aware gate
-```
-
-`parent_list`/`child_list` capture ordinary within-graph dependencies (the kind PennyLane and the AutoGrad engine already know about). `cross_graph_links` is the new part: it's what lets a *gradient* node depend on a *quantum-circuit* node's output (or vice versa) without merging the two graphs into one — the two graphs stay exactly as PennyLane/JAX produced them; the CDS is a side-table of relationships layered on top.
-
-### 2.2 `RecordPool` — the scheduler's flat runtime view
-
-```
-RecordPool = [CDSRecord()] * MAX
-```
-
-All `CDSRecord`s live in one contiguous array rather than being scattered across two separate graph objects. This is what gives the scheduler:
-
-- **Constant-time record access** (`RecordPool[node_id]`) instead of re-walking `G_circ`/`G_grad` on every scheduling decision.
-- **Negligible memory overhead** — each record is small, fixed-size metadata, not a copy of the actual tensors/quantum state.
-- **A single unified view for topological scheduling** — the scheduler never needs to know or care which of the two original graphs a ready node came from; it just sees "some record with `ready_counter == 0`."
-
-### 2.3 How the two structures are built and used
-
-**Construction (Algorithm 1).** One traversal of `G_circ ∪ G_grad` creates a `CDSRecord` per node, copies its `NodeID`/`GraphID`/`NodeType`, and fills in `ParentList`/`ChildList` from the graphs' own edges. A second pass walks the framework-reported data dependencies *between* the two graphs (e.g. "this measurement feeds this gradient computation") and records them as `CrossGraphLinks`. Finally every record's `ReadyCounter` is initialized to `|ParentList| + |CrossGraphLinks|`, and its `ExecutionState` set to `NotReady`.
-
-**Scheduling (Algorithm 2).** The scheduler repeatedly pops the highest-priority record from a ready queue `Q`, estimates its memory need from `resource_metadata`, and — only if a stream is free *and* `M_allocated + m_req < α·M_total` — dispatches it asynchronously to that stream. If no stream/memory is available, it instead waits for a running task to finish, releases that task's stream and memory, marks it `Done`, and decrements the `ReadyCounter` of every node in its `ChildList` **and** its `CrossGraphLinks`. Any node whose counter reaches zero is pushed onto `Q`. Because `ChildList` and `CrossGraphLinks` are decremented through the same mechanism, an independent quantum-circuit evaluation and an independent gradient computation can become ready and get dispatched to different streams *at the same time* — this is precisely what turns the framework's synchronous `T_fwd → T_grad` pipeline into overlapping, concurrent execution.
-
-### 2.4 Why this design, specifically
-
-- **No framework modification.** Because the CDS is a side-structure built from graphs PennyLane/JAX already construct, QuSim-Sed doesn't need to patch PennyLane's QNode, JAX's autodiff, or the simulator backend — it only needs read access to both graphs' edges plus the cross-graph data dependencies the framework already exposes at runtime.
-- **Cross-graph dependencies are explicit, not inferred.** Without `CrossGraphLinks`, a scheduler operating on `G_circ` and `G_grad` separately (which is what "Gradient-only" and "Quantum-only" effectively do) can only parallelize *within* one graph. Making the `M_i → G_i`-style links first-class metadata is what lets a single scheduler pass see opportunities that span both graphs — the core mechanism behind Cross-graph/QuSim-Sed's advantage over either single-graph optimization alone.
-- **Resource-awareness is a gate, not a rewrite.** `resource_metadata` + the `M_allocated + m_req < α·M_total` check in Algorithm 2 bounds concurrency to what the GPU can actually hold; it never changes what a node computes, only when it's allowed to start. That's an important distinction from the qubit-block-splitting shortcut used in one of this repo's earlier scripts (§5) — the CDS's resource-awareness throttles *how much runs at once*, it never shrinks the *problem* being run.
-
----
-
-## 3. Codebase overview
-
-| File | Paper concept it implements | Notes |
+| Configuration | Execution | Available methods |
 |---|---|---|
-| `qusimsed_four_config_benchmark.py` | Sequential / Gradient-only / Quantum-only / Cross-graph, swept across qubits and layers | Earlier iteration — its Quantum-only/Cross-graph split the qubit register into smaller independent blocks. This shrinks the actual state space being simulated, which inflates speedups at large qubit counts for a reason unrelated to scheduling (see §5). Kept for reference; superseded by the merged script below for anything you want to trust numerically. |
-| `qusimsed_catalyst_benchmark.py` | Adds Catalyst QJIT and a QuSim-Sed+Catalyst "Merged" strategy, compared honestly against Sequential/Gradient-only/Cross-graph on one fixed circuit | This is the fair design later mirrored in the current paper's Figs. 9–10. |
-| `qusimsed_merged_benchmark.py` | **The reference implementation.** All six strategies — Sequential, Gradient-only, Quantum-only, Cross-graph (QuSim-Sed proxy), Catalyst QJIT, and Merged (QuSim-Sed+Catalyst) — run the *exact same* full-width circuit at a given (qubits, layers). Only the dispatch of the `2P` independent shift evaluations differs: loop / vmap-batch / thread-pool concurrency / compiled / compiled+async. | Use this one to reproduce numbers in the realistic 1×–3× range the paper reports, rather than the inflated numbers a block-decomposed circuit produces. |
-| `qusimsed_console_simple.html` | An interactive, in-browser cost-model console mirroring `qusimsed_merged_benchmark.py`'s scheduling logic | Sliders for qubits, layers, differentiation method, concurrent streams, and chunk size; shows per-iteration time and speedup for all six strategies live, plus a qubit-vs-parameter-count speedup sweep table. Useful for intuition-building without needing a GPU. |
+| `execution_backend="torch-cuda"` | Explicit CUDA state-vector executor; GPU required | Sequential, QuSim-Sed; parameter-shift and adjoint |
+| `execution_backend="torch-cpu"` | Explicit CPU validation of the same arithmetic and dependencies | Sequential, QuSim-Sed; parameter-shift and adjoint |
+| `execution_backend="pennylane"` | Separate Lightning-GPU experiment path | Sequential and Batched parameter-shift for parameter-shift; Sequential for adjoint |
 
-### What the CDS / Algorithm 1–2 correspond to in code
-The paper's `CDSRecord`/`RecordPool`/topological scheduler is a general **mechanism**; the benchmark scripts implement its *effect* directly rather than the generic data structure, since the goal is measuring scheduling *outcomes* (Sequential vs Gradient-only vs Quantum-only vs Cross-graph), not the CDS's own overhead:
+The CLIs select Torch CUDA by default and fail if CUDA is unavailable.
+For synthetic runs, `server_benchmark --cpu-validation` explicitly selects CPU
+validation. The training launcher instead accepts `--backend torch-cpu` for
+CPU checks or `--backend pennylane` for the separate Lightning-GPU path.
+Backend selection is also available in the Python API and Streamlit UI.
 
-- **Gradient-only** ≈ Coordinating Layer batches only within the AutoGrad Graph → `jax.vmap` over the `2P` shifted circuit calls in one call (or in `chunk_size` groups).
-- **Quantum-only** ≈ Coordinating Layer dispatches only Circuit Graph nodes concurrently → a `ThreadPoolExecutor` with `n_streams` workers, each processing an assigned slice of shift-pairs sequentially (no batching) — approximating separate CUDA streams for independent circuit evaluations.
-- **Cross-graph (QuSim-Sed)** ≈ both graphs scheduled jointly → the same `n_streams` concurrent groups as Quantum-only, but each group is *also* `vmap`-batched internally, so both the Circuit Graph's stream-level concurrency and the AutoGrad Graph's batching are exploited at once — this is the direct analogue of Algorithm 1/2's `ReadyCounter`-driven concurrent dispatch, minus the generic bookkeeping structure.
-- **Resource-awareness** (`m_state = 2^n × sizeof(complex)`, throttled dispatch) is modeled in `benchmark_four_configs_qubit_scaling`/`safe_chunk_size()`-style helpers that cap `chunk_size`/`n_streams` once the concurrent memory footprint approaches a GPU memory budget.
+The maintained Torch comparison uses **identical kernels and circuits**:
+Sequential uses one scheduler stream, and QuSim-Sed uses the configured stream
+count. This Sequential baseline still includes CDS construction and scheduling
+overhead; it is not conventional sequential PennyLane. Speedup is computed
+within each backend. Naive multi-stream, separate Gradient-only/Quantum-only
+ablations, and Catalyst comparisons are not implemented in this maintained
+Torch comparison.
 
----
+## GPU-server setup
 
-## 4. How to set up and run the tests
-
-### 3.1 Environment
-The paper's results were produced on **Google Colab** with an **NVIDIA A100 (80GB, 108 SMs)**. Any CUDA GPU with `pennylane-lightning[gpu]` support will work; the scripts fall back to CPU (`lightning.qubit`) automatically if no GPU device is found, so you can sanity-check the code path without a GPU (just expect much longer wall-clock times and no meaningful speedup at large qubit counts).
-
-```bash
-# Core simulation stack
-pip install pennylane pennylane-lightning[gpu] custatevec-cu12 -q
-
-# JAX (match to your CUDA version — see https://docs.jax.dev/en/latest/installation.html)
-pip install --upgrade "jax[cuda12]" -q
-
-# Catalyst + optimizer, needed for the Catalyst / Merged strategies
-pip install pennylane-catalyst optax -q
-
-# Plotting / data handling
-pip install pandas matplotlib -q
-```
-
-If `pennylane-catalyst` isn't installed, `qusimsed_merged_benchmark.py` and `qusimsed_catalyst_benchmark.py` will print a warning and simply skip the Catalyst/Merged rows — Sequential/Gradient-only/Quantum-only/Cross-graph still run.
-
-### 3.2 Running the benchmarks
+The local numerical tests used Python 3.11, PennyLane 0.44.0, and Torch 2.5.1.
+The dependency file is not a lockfile; record the versions installed on the
+server with each experiment.
 
 ```bash
-# Reference benchmark: all 6 strategies, Table 6 sweep {4,6,8} qubits x {3,5} layers
-python qusimsed_merged_benchmark.py
-#  -> merged_table6_results.csv
-#  -> merged_table6_all_strategies.png
-
-# Earlier 4-config-only sweep (qubits 10-30) — useful for qualitative trends,
-# but see the block-decomposition caveat in §5 before trusting absolute speedups
-python qusimsed_four_config_benchmark.py
-#  -> method_comparison_qubits_layers.png
-#  -> speedup_vs_qubit_parameter_scaling.png
-
-# Catalyst-focused comparison (Sequential / Gradient-only / Cross-graph / Catalyst / Merged)
-python qusimsed_catalyst_benchmark.py
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
 ```
 
-To reproduce the **paper's exact Table III setup** (qubits `{10,15,20,25}`, layers `{3,5,7}`, 30 timed iterations, 1 warm-up), edit the sweep parameters at the top of `benchmark_table6()` (or the equivalent sweep function) in `qusimsed_merged_benchmark.py` before running — the shipped default uses a smaller `{4,6,8}×{3,5}` sweep so the script finishes quickly on shared/Colab GPUs.
+Install a CUDA-enabled Torch build appropriate for the server using the
+[PyTorch installation instructions](https://pytorch.org/get-started/locally/).
+Then install the repository dependencies:
 
-Each script prints per-configuration timings and speedups to stdout as it runs, and saves a CSV + PNG summary at the end.
+```bash
+python -m pip install -r requirements-gpu.txt
 
-### 3.3 Exploring without a GPU: the console
-Open `qusimsed_console_simple.html` directly in a browser (no server needed). Use it to:
+# Required for application training with the dashboard:
+python -m pip install scikit-learn streamlit
 
-- Move the **Qubits** / **Layers** sliders and toggle **Parameter-Shift vs. Adjoint** to see per-iteration time and speedup for all six strategies update live.
-- Expand **Advanced** to change GPU profile (A100 / V100 / CPU), concurrent streams, and vmap chunk size.
-- Read off the **speedup vs. parameter-scaling table** (qubits swept 4→30 at your current layer count) to see how each strategy's advantage grows or plateaus as the parameter count increases — the console's analogue of the paper's Figs. 7–8.
+# Optional process-memory telemetry:
+python -m pip install psutil
 
-This is a cost model, not live telemetry — treat it as intuition-building alongside the real benchmark scripts, not a substitute for them.
-
----
-
-## 5. Known caveat: block-decomposition inflation (fixed in the merged script)
-
-If you compare `qusimsed_four_config_benchmark.py`'s numbers at large qubit counts against `qusimsed_merged_benchmark.py`, you'll see the former reporting far larger ("thousands-of-x") speedups for Cross-graph. That's because its Quantum-only/Cross-graph implementations **split the qubit register into smaller independent blocks**, which reduces the actual `2^n` state size being simulated — an exponential reduction in *work*, not a scheduling win. `qusimsed_merged_benchmark.py` fixes this: every strategy runs the identical full-width circuit, so its speedups (and the paper's) stay in the realistic ~1×–6× band. Prefer the merged script (and the console, which mirrors it) for any numbers you intend to cite or compare against the paper.
-
----
-
-## 6. Citation
-
-```
-QuSim-Sed: Scheduling-Driven Acceleration for PennyLane-based
-Hybrid Classical Quantum Simulation on GPU.
-(Working paper — SC'26 submission draft.)
+nvidia-smi
+python -c "import torch; print(torch.__version__, torch.version.cuda); assert torch.cuda.is_available(); print(torch.cuda.get_device_name(0))"
+python -m qusimsed.server_benchmark --help
+python -m qusimsed.train --help
 ```
 
----
+`requirements-gpu.txt` includes Lightning-GPU for the separate PennyLane path.
+The Torch executor does not require JAX or Catalyst. Nsight Systems (`nsys`)
+must be installed on the server for CUDA timeline collection.
 
-## 7. Experiment-review revision scaffold
+## Experiments
 
-The original benchmark scripts are useful references but do not themselves
-prove the multi-stream and CDS claims: their `ThreadPoolExecutor`/`vmap`
-paths are scheduling proxies. The new `qusimsed/` package adds a real,
-dependency-correct `RecordPool` scheduler, resource accounting, timestamped
-traces, numerical-error metrics, metadata-memory measurement, and a
-capability-gated Nsight entry point. It deliberately labels host-thread traces
-as host-thread traces; they are not presented as CUDA kernel overlap.
+GPU server runs containing QuSim-Sed now **automatically collect a companion
+Nsight profile** after the primary run. This adds one QuSim-Sed trace execution
+with the same circuit and scheduling configuration; it does not instrument the
+reported timing samples. The primary result is saved before profiling begins.
+Automatic profiling applies to server CLI correctness/benchmark and QuSim-Sed
+trace runs, synthetic sweep cases, and synthetic UI runs when companion
+profiling is enabled. Application training through `qusimsed.train` saves
+results automatically but does not launch a profiler. Application UI profiling
+is recorded as skipped; direct Python calls do not launch profiling either.
 
-```powershell
-# framework-independent unit tests and an observed CDS trace
+For `--output results/server/run.json`, automatic artifacts are:
+
+```text
+results/server/run.json
+results/server/profiling/run/qusimsed.nsys-rep
+results/server/profiling/run/qusimsed.nsight.json
+results/server/profiling/run/qusimsed-trace.json
+```
+
+The result JSON's `profiling` field and terminal output point to these files.
+`--profile-output results/nsight/my-run` changes the profile prefix;
+`--no-profile` disables the companion run. Missing Nsight or a profiler failure
+is recorded as `collected: false` without discarding the primary result. CPU
+validation records a skipped-profile manifest. An unavailable CUDA runtime
+still fails the requested GPU computation rather than falling back to CPU.
+An existing collector-managed Nsight session suppresses the automatic replay
+to avoid nested profiling. Numerical correctness failures also skip the replay.
+
+
+### 1. Tests and numerical correctness
+
+```bash
 python -m unittest discover -s tests -v
-python -m qusimsed.demo --output-dir results/demo --streams 2
 
-# GPU-only PennyLane correctness validation (no CPU fallback)
-pip install -r requirements-gpu.txt
-python -m qusimsed.gpu_correctness --qubits 4 --layers 2
+python -m qusimsed.server_benchmark --mode correctness \
+  --qubits 4 --layers 2 --differentiation parameter-shift \
+  --output results/server/shift-correctness.json
 
-# Review artifacts: live memory snapshot and Nsight report/availability manifest
-python -m qusimsed.collectors memory-demo
-python -m qusimsed.collectors nsight --output results/nsight/vqc -- python -m qusimsed.gpu_correctness --qubits 4 --layers 2
-
-# optional UI (requires: pip install streamlit)
-streamlit run app/streamlit_app.py
+python -m qusimsed.server_benchmark --mode correctness \
+  --qubits 4 --layers 2 --differentiation adjoint \
+  --output results/server/adjoint-correctness.json
 ```
 
-The demo writes JSON/CSV trace data plus `stream_timeline.svg` and
-`scheduler_workflow.svg`. For the reviewer mapping, supported experiment
-matrix, and the paper/code gap analysis, see
-[`docs/EXPERIMENT_REVIEW_PLAN.md`](docs/EXPERIMENT_REVIEW_PLAN.md).
+Correctness mode compares each scheduled method with an independent PennyLane
+reference. For the Torch backend, that small reference uses `default.qubit` on
+CPU outside benchmark timing; the candidate computations use the requested
+backend. The checks cover expectation, MSE loss, the **loss gradient**, and the
+SGD parameter update. A failed numerical comparison causes a nonzero CLI exit.
+The default synthetic loss is `(expectation - 1)**2` with learning rate `0.05`.
 
-`qusimsed.runtime.detect_runtime()` selects `cuda-streams` only if a usable
-CUDA Python runtime is detected. If a GPU driver is missing or the installed
-Python packages cannot use CUDA, QuSim-Sed continues in `cpu-threads` mode.
-That mode uses the same dependency/resource scheduler with CPU worker threads,
-and its trace is explicitly labelled `host-thread`, never `CUDA stream`.
+Local-only validation is explicit:
 
-The Streamlit app also runs two reviewer-focused experiments when PennyLane is
-installed: (1) per-method numerical errors for expectation, gradients, loss,
-and parameter updates; and (2) timing/speedup comparison of Sequential,
-Batched Parameter-shift, Naive Multi-stream, and QuSim-Sed. Each method uses
-the same deterministic full-width VQC and initial workload.
+```bash
+python -m qusimsed.server_benchmark --cpu-validation --mode correctness \
+  --qubits 4 --layers 2 --differentiation adjoint \
+  --output results/local/adjoint-correctness.json
+```
 
-The **Real QML benchmarks** tab provides Iris, Wine, Breast Cancer, and binary
-PCA-MNIST (digits 3 versus 5). It records train time, test loss, test accuracy,
-speedup, and deviations from the Sequential training trajectory. These are
-secondary application validations; retain the synthetic workload as the primary
-controlled scheduling benchmark.
+The scheduling suite was locally validated with its CUDA-only test skipped
+because CUDA was unavailable. Additional profiling tests cover missing tools,
+report validation, configuration forwarding, and recursion prevention. Passing CPU tests establishes neither
+GPU kernel overlap nor GPU speedup. Tests requiring PennyLane/Torch also skip
+when those packages are absent; inspect the test summary on the server.
 
-Before reporting GPU utilization, kernel overlap, CUDA stream overlap, or
-speedup values from the revised framework, run the identical PennyLane workload
-on the target GPU and retain the Nsight `.nsys-rep` artifact. If `nsys` is not
-available, the framework reports that fact and does not infer profiling data.
+### 2. Controlled synthetic timing
 
-## 8. Environment and reproducible run guide
+The VQC uses RY feature encoding, per-layer RX/RY/RZ rotations, a CNOT ring,
+and a Pauli-Z expectation. All methods receive the same full-width circuit,
+features, and initial parameters. By default, `P = 3 * qubits * layers`.
+Set `--parameters P` to train only the first P rotations while freezing the
+remaining angles, preserving the circuit's gates and initial function.
 
-See [Environment and run guide](docs/ENVIRONMENT_AND_RUN_GUIDE.md) for supported
-platforms, GPU installation/verification, unit-test and collector commands,
-Nsight collection, and Streamlit operation.
+```bash
+python -m qusimsed.server_benchmark --mode benchmark \
+  --qubits 10 --layers 3 --differentiation parameter-shift \
+  --streams 4 --warmup 1 --iterations 30 --seed 7 \
+  --output results/server/10q-3l-shift.json
+```
+
+Benchmark mode always runs both Sequential and QuSim-Sed. It reports mean and
+standard deviation of wall-clock iteration time and speedup over Sequential.
+Each timed iteration reuses the same initial workload and includes tape/graph
+construction, executor setup, scheduling, forward evaluation, differentiation,
+MSE/SGD computation, device completion, and result handling. It measures a
+repeated training-step workload, not a convergence trajectory or kernel-only time.
+
+**SM demand is estimated automatically by default.** Omit `--sm-demand`
+(or use `sm_demand=None` in Python). Each scheduled task receives a workload
+estimate using the actual GPU SM count, state-vector size and gate width;
+adjoint reverse work receives a larger estimate. The scheduler admits ready
+work within the summed demand and live memory budgets, then uses dependency,
+affinity and synchronization costs to select streams.
+
+This is a conservative static model, **not measured CUDA occupancy**. It uses
+one model work unit per 256 complex amplitudes, scaled by gate width and reverse
+work, and saturates admission at one unit per SM. Torch/cuBLAS launch geometry
+and bandwidth are not measured by this model. Large state-vector tasks may
+therefore remain serial. CPU validation or unavailable GPU properties use a
+conservative full-demand fallback. GPU throughput tuning and automatic
+profile-based calibration remain future work; maximum overlap is not guaranteed.
+
+**Both resources constrain every dispatch**, as in Algorithm 2 and equations
+(20)-(21): `reserved_memory + task_memory <= effective_memory_limit` and
+`used_sm + task_sm_demand <= sm_capacity`. Available SM capacity is the device
+capacity minus demands reserved by unfinished tasks. Live global-memory
+checks include pending reservations and avoid counting already allocated
+state twice. State leases remain held across gates until their evaluation ends.
+
+Feasible tasks are ranked by priority, affinity, newly exposed parallelism,
+synchronization cost and memory/SM pressure. `--parallelism-weight` and
+`--resource-weight` control the last two additions. Each trace row includes a
+`resource_admission` snapshot with the before-dispatch budgets and demands,
+SM equivalents, and selection score. Profiling is for verifying achieved
+kernel overlap; it is not required to activate these constraints. See
+[resource model details](docs/SCHEDULING_IMPLEMENTATION.md#resource-model).
+
+Trace results expose per-task `resource_estimates`, source and inputs, along
+with `sm_demand_mode`. `--sm-demand 1.0` explicitly forces conservative serial
+quantum admission; `--sm-demand 0.25` overrides the model to allow up to four
+quantum tasks, subject to dependencies, streams and memory. The UI defaults to
+automatic estimation and exposes an optional manual override.
+
+Useful server options:
+
+| Option | CLI default | Meaning |
+|---|---|---|
+| `--gpu-device` | `0` | CUDA device index |
+| `--streams` | `4` | QuSim-Sed stream count; Sequential uses one |
+| `--sm-demand` | Unset (automatic) | Optional manual admission-demand override |
+| `--memory-gib` | Unset | Optional cap on the budget derived from live allocatable memory |
+| `--memory-safety-factor` | `0.8` | Fraction of the budget admitted by the scheduler |
+| `--partition-size` | `16` | Maximum nodes per topological partition |
+| `--affinity-weight`, `--sync-weight` | `1.0` each | Task/stream selection weights |
+| `--warmup`, `--iterations` | `1`, `30` | Warm-up and timed iteration counts |
+| `--strategy` | `qusimsed` | Selects one method in **trace mode only** |
+| `--no-profile` | Unset | Disable automatic companion profiling |
+| `--profile-output` | Derived from `--output` | Override the Nsight output prefix |
+
+The Python `ExperimentConfig` default is 10 iterations; set it explicitly to
+30 when matching the CLI timing protocol. The memory safety factor applies
+after the optional budget cap. Resource estimates reduce over-admission but
+cannot prevent another process from allocating GPU memory after a check.
+
+### 3. Scaling and scheduler sensitivity
+
+The paper's experiment axes can guide new server runs:
+
+| Experiment | Configuration |
+|---|---|
+| Qubit scaling | 10, 15, 20, 25 qubits at 3 layers |
+| Depth scaling | 20 qubits at 3, 5, 7 layers |
+| Differentiation | Repeat both axes for parameter-shift and adjoint |
+| Scheduler sensitivity | Vary streams, partition size, affinity/synchronization weights, and justified SM estimates while holding the circuit fixed |
+
+For example, this Bash sweep runs the qubit-scaling axis for both methods.
+The example below uses automatic resource estimation. Validate a small configuration
+and its memory requirements before launching the larger cases.
+
+```bash
+for differentiation in parameter-shift adjoint; do
+  for qubits in 10 15 20 25; do
+    python -m qusimsed.server_benchmark --mode benchmark \
+      --qubits "$qubits" --layers 3 --differentiation "$differentiation" \
+      --streams 4 --warmup 1 --iterations 30 \
+      --output "results/scaling/${differentiation}-${qubits}q-3l.json" || exit 1
+  done
+done
+```
+
+These runs use the current Torch executor, so they do not reproduce the paper's
+PennyLane/JAX/Lightning-GPU measurements directly. Use the collection runner
+below for independent parameter-count sweeps at fixed qubits and depth.
+
+#### Collect experiment results automatically
+
+**No extra command is needed to save results from normal runs.**
+`correctness_experiment`, `baseline_experiment`, and `run_real_benchmark`
+automatically save results when called from the server CLI, Streamlit, or Python.
+Each invocation gets a unique folder under
+`<config.output_dir>/experiments/<UTC-time>-<run-kind>-<unique-id>/`.
+The server CLI uses the parent directory of its existing `--output` file;
+Streamlit uses its Output directory setting; Python defaults to `results`.
+The returned `result["collection"]` contains the exact saved paths.
+
+Each folder contains `result.json`, `summary.csv`, `errors.csv`, `timings.csv`,
+and `convergence.csv`. Applicable tables include raw iteration times, speedup,
+time savings, errors, and per-epoch training loss/time; inapplicable tables
+are empty. JSON retains configuration, runtime metadata, traces and final
+parameters supplied by the run. Failures are recorded and then raised normally.
+File writes occur outside measured iterations/training loops. Repeated calls
+preserve previous archives. Server profiling links are added to its archive
+after profiling finishes. A standalone timing call explicitly records that it
+did not perform an independent correctness check. Unit-test pass/fail counts
+are software validation, not experiment performance measurements.
+
+For example, the existing call `result = run_real_benchmark(config)` now saves
+its results without requiring `save_real_result` or another command. Explicit
+save functions still work for named copies. Set `collect_results=False` in
+`ExperimentConfig` only when a caller manages persistence itself (as the sweep
+runner does).
+
+**Optional full sweeps:** the command below is only for launching many
+configurations automatically. Run it from the repository root in the GPU
+environment. It is not a required postprocessing or collection step.
+The collection runner validates numerical correctness before timing each case,
+saves results incrementally, and exports tables for plotting. On the GPU server:
+
+```bash
+# Inspect the matrix and method support without executing circuits.
+python -m qusimsed.experiment_suite --output results/experiments --plan-only
+# Execute exactly that matrix; resume also retries failed/interrupted cases.
+python -m qusimsed.experiment_suite --output results/experiments --resume
+```
+
+Defaults cover both parameter-shift and adjoint: qubits 10/15/20/25 at depth 3,
+depths 3/5/7 at 20 qubits, and trainable parameters 36/72/108/144/180/216/270
+at 20 qubits and depth 5. Duplicate points are merged (26 cases per seed).
+Parameter sweeps freeze a suffix of the existing rotations; they hold gate
+count and initial angles fixed. `P` cannot exceed `3 * qubits * layers`.
+Use `--seeds 7 11 19` for independent seeded runs, `--axes` to choose sweeps,
+and `--iterations`/`--warmup` to override 30 measured steps and one warm-up.
+Each seed remains a separate result; the runner does not pool uncertainty.
+
+The default backend is Torch CUDA, with an independent `lightning.gpu`
+correctness reference. Missing CUDA or reference dependencies cause explicit
+failures. `--reference-backend default.qubit` selects a CPU reference if desired.
+SM demand is estimated automatically; `--sm-demand` is an optional override. A completed synthetic case automatically receives a separate Nsight
+companion run; `--no-profile` disables it. Profiling is outside measured samples.
+Application profiling is currently recorded as skipped.
+
+| Saved file under the output directory | Contents |
+|---|---|
+| `manifest.json`, `capabilities.json` | Exact matrix, environment/package/GPU metadata, progress, supported and missing methods |
+| `summary.json`, `summary.csv` | Per-method status, correctness, timing statistics, speedup and time-saving percentage |
+| `errors.csv` | Absolute/relative errors, RMSE and tolerance checks for expectation, loss gradient, loss and updated parameters |
+| `timings.csv` | Individual synthetic iteration times, with configuration and seed |
+| `convergence.csv` | Application training loss and elapsed time for every epoch |
+| `comparisons.csv` | Pairwise speedup and time savings within the same case, backend and timing scope |
+| `cases/<case-id>/` | Full case, correctness, benchmark or training JSON; optional traces and `profiling/qusimsed.*` artifacts |
+
+Speedup is baseline time / method time; time saving is
+`100 * (1 - method time / baseline time)`. Slowdowns retain negative savings.
+Numerical failures suppress aggregate performance comparisons; failure details
+and any raw measurements remain saved. Resume requires the same matrix/options;
+use another output directory for a different configuration.
+
+Torch currently measures Sequential and QuSim-Sed. With `--backend pennylane`,
+the available methods are Sequential and Batched parameter-shift (the latter
+only for parameter-shift differentiation). Requested missing methods, including
+Catalyst and QuSim-Sed + Catalyst, receive `unsupported` rows without timing
+values. Historical proxy results are never imported. `--methods` selects report
+entries; underlying validation/benchmark routines still run their supported
+method set. Cross-backend speedups are not computed automatically.
+
+For application training sweeps, for example:
+
+```bash
+python -m qusimsed.experiment_suite \
+  --axes qubits depth --qubits 4 6 8 --depths 1 2 3 \
+  --fixed-qubits 4 --fixed-layers 2 --workloads iris mnist-pca \
+  --samples 50 --epochs 3 --output results/application-experiments
+```
+
+These report actual multi-epoch training time, test errors/accuracy and loss
+curves. Synthetic runs measure repeated training steps from the same initial
+parameters. These timing scopes are labeled separately in the exports.
+Dataset dependencies and MNIST cache/network access are required for applications.
+
+For a small local validation run (not GPU performance evidence):
+
+```bash
+python -m qusimsed.experiment_suite --cpu-validation \
+  --axes parameters --parameter-qubits 2 --parameter-layers 1 \
+  --parameters 1 3 6 --iterations 1 --warmup 0 --no-profile \
+  --output results/collection-smoke
+```
+
+### 4. Application benchmarks
+
+The application suite trains a binary VQC classifier with full-batch updates.
+It reports training time, test MSE, test accuracy, speedup, and parameter/training
+loss-trajectory deviations from Sequential.
+
+| Workload key | Task |
+|---|---|
+| `iris` | Iris classes 0 versus 1 |
+| `wine` | Wine classes 0 versus 1 |
+| `breast-cancer` | Binary diagnostic classification |
+| `mnist-pca` | MNIST digits 3 versus 5, reduced to qubit-sized features |
+
+A stratified 80/20 split precedes scaling and PCA; preprocessing is fitted on
+the selected training samples only. `samples` caps training size, and the test
+subset is capped separately. MNIST is fetched from OpenML on first use and
+requires dataset access/cache availability.
+
+Run applications through the **Real QML benchmarks** UI tab or the Python API:
+
+```python
+from qusimsed.config import ExperimentConfig
+from qusimsed.real_benchmarks import run_real_benchmark, save_real_result
+
+config = ExperimentConfig(
+    workload="iris",              # Use "mnist-pca" for the image benchmark.
+    qubits=4,
+    layers=2,
+    differentiation="adjoint",    # "parameter-shift" is also supported.
+    execution_backend="torch-cuda",
+    streams=4,
+    sm_demand=None,               # Automatic workload/hardware estimate.
+    samples=50,
+    iterations=3,                 # Application iterations are training epochs.
+    seed=7,
+)
+result = run_real_benchmark(config)
+save_real_result(result, "results/applications/iris-adjoint.json")
+```
+
+Application timing covers the training loop and per-epoch training-loss
+measurement; it excludes dataset loading/preprocessing and final test
+prediction. It does not use the synthetic warm-up protocol. Samples and
+batch accumulation are processed sequentially on the host; the selected
+scheduler controls each quantum-gradient evaluation. Full cross-sample GPU
+training orchestration is not claimed. Saved results contain convergence error
+metrics, complete per-epoch training-loss curves and times, and final parameters.
+
+VQE/Hamiltonian-sum benchmarking remains unimplemented in the maintained
+executor, even though it is described in the expanded paper setup.
+
+### 5. GPU traces and memory evidence
+
+#### Automatic profiling: run, locate, and inspect
+
+Run these commands from the repository root **on the GPU server**:
+
+```bash
+# Verify that the server has both CUDA and the profiler available.
+nvidia-smi
+nsys --version
+
+# Run the benchmark; the CLI then profiles one additional QuSim-Sed step.
+python -m qusimsed.server_benchmark --mode benchmark \
+  --qubits 10 --layers 3 --differentiation parameter-shift \
+  --streams 4 --warmup 1 --iterations 30 \
+  --output results/server/run.json
+```
+
+This command uses automatic SM-demand estimation. Stream count alone does
+not override memory or estimated SM admission; inspect the trace estimates
+and server profiling before using a manual demand override.
+
+The primary benchmark finishes and saves its results first. The CLI then
+prints `Collecting companion QuSim-Sed profile: ...` and launches one extra
+trace execution under Nsight. This extra step adds runtime but is excluded
+from the reported benchmark samples. Its report captures that step, not all
+30 timed iterations or the Sequential baseline.
+
+On successful collection, the example creates:
+
+```text
+results/server/
+├── run.json                         # Benchmark results and profiling links
+├── run.csv                          # Timing comparison rows
+└── profiling/run/
+    ├── qusimsed.nsys-rep             # Open in NVIDIA Nsight Systems
+    ├── qusimsed.nsight.json          # Collection status, command, stdout/stderr
+    └── qusimsed-trace.json           # CDS dependencies, streams, resource data
+```
+
+Paths are relative to the directory where the command runs. Files produced
+on a remote GPU server remain on that server; they are not automatically
+downloaded to your local computer. Reusing the same output paths overwrites
+results, so choose a distinct `--output` filename for each configuration/run.
+
+Check the manifest before interpreting the report:
+
+```bash
+python -m json.tool results/server/profiling/run/qusimsed.nsight.json
+```
+
+`"collected": true` means the profiler/target exited successfully and a new,
+nonempty report was found. If it is `false`, inspect `reason`, `stderr`, and
+`returncode` when present. Missing Nsight, an explicit CPU validation run, or
+a failed profiling child must not be treated as a successful GPU profile.
+The main `run.json` also contains a `profiling` field with artifact paths and
+status. A completed benchmark does not by itself prove collection succeeded.
+
+To inspect the GPU timeline, open `qusimsed.nsys-rep` in **NVIDIA Nsight
+Systems** on the server, or copy it to a machine with the Nsight Systems GUI.
+Look for the QuSim-Sed NVTX task labels and CUDA stream/kernel intervals;
+compare overlap, synchronization waits, and idle gaps. The scheduler JSON is
+useful for matching tasks to dependencies, but is not a replacement for the
+GPU timeline.
+
+To choose another profiling location:
+
+```bash
+python -m qusimsed.server_benchmark --mode benchmark \
+  --qubits 10 --layers 3 \
+  --output results/server/run-custom.json \
+  --profile-output results/nsight/run-custom/qusimsed
+```
+
+Here `--output` names the primary result JSON; `--profile-output` is a prefix
+for `.nsys-rep`, `.nsight.json`, and `-trace.json`. To run without the extra
+profile, append `--no-profile` to the server command. Automatic collection
+is available in the server CLI, optional sweep runner, and Streamlit's
+"Collect companion Nsight profile" setting. Direct Python experiment calls
+save results automatically but do not launch profiling. Application datasets
+currently receive a skipped-profile manifest because the replay is synthetic.
+
+#### Manual Sequential versus QuSim-Sed comparison
+
+Automatic profiling captures a companion QuSim-Sed run. For a separate
+Sequential comparison, collect reports manually for the same workload under
+both strategies. The
+`0.25` SM demand here is an example estimate to be validated on the server.
+
+```bash
+for strategy in sequential qusimsed; do
+  python -m qusimsed.collectors nsight --output "results/nsight/$strategy" -- \
+    python -m qusimsed.server_benchmark --mode trace --strategy "$strategy" \
+    --qubits 10 --layers 3 --differentiation parameter-shift \
+    --streams 4 --sm-demand 0.25 \
+    --output "results/server/${strategy}-trace.json" || exit 1
+done
+```
+
+The collector requests CUDA, NVTX, and OS runtime tracing. Inspect its manifest:
+`collected: false` means no successful profiling result, even if a manifest was
+written. The collector may return normally for an unavailable profiler, so the
+shell exit status alone is insufficient. Nsight Compute collection and
+automatic SM-demand calibration are not provided by this wrapper.
+
+Use the Nsight timeline to establish actual kernel overlap, stream activity,
+synchronization, and idle periods. CDS timestamps include host submission and
+completion-observation overhead. Stream handles or overlapping host intervals
+alone do not establish overlapping GPU kernels.
+
+| Run | Saved artifacts |
+|---|---|
+| Correctness | JSON with configuration, environment, errors, and traces; CSV comparison rows |
+| Synthetic benchmark | JSON with timing scope, configuration, environment, final trace per method, and timing rows; CSV comparison rows |
+| Trace | JSON with circuit/FX metadata, partitions, task dependencies, stream handles, event-wait count, memory reservations, observed Torch peak allocation, and estimated SM peak |
+| Application | JSON and CSV with dataset/split sizes, configuration, performance, and correctness metrics |
+| Nsight collector | `.nsight.json` manifest and, on successful collection, `.nsys-rep` |
+
+The CLI records Torch/CUDA versions and selected GPU properties. Also retain
+`python -m pip freeze`, driver information, profiler version, and raw reports
+alongside each experiment. A CUDA field reported as `null` is unavailable,
+not a zero measurement.
+
+## Interactive UI and scheduler diagnostics
+
+To start application training **and** Streamlit together on the GPU server,
+run this from the repository root in the environment containing the GPU
+dependencies and Streamlit:
+
+```bash
+python -m qusimsed.train --dataset iris --qubits 4 --layers 2 \
+  --differentiation adjoint --epochs 3 --samples 50 \
+  --output-dir results/training --port 8501
+```
+
+This runs both Sequential and QuSim-Sed on the default Torch CUDA backend.
+No separate Streamlit launch or result-collection command is required.
+
+| Training option | Default | Purpose |
+|---|---|---|
+| `--dataset` | `iris` | `iris`, `wine`, `breast-cancer`, or `mnist-pca` |
+| `--qubits`, `--layers` | `4`, `2` | Circuit width and depth |
+| `--parameters` | All rotations | Train the first P rotations; freeze the rest |
+| `--differentiation` | `adjoint` | `adjoint` or `parameter-shift` |
+| `--epochs`, `--samples` | `3`, `50` | Training epochs and training-sample cap |
+| `--learning-rate`, `--seed` | `0.05`, `7` | Optimizer step size and reproducibility |
+| `--backend`, `--gpu-device` | `torch-cuda`, `0` | Execution backend and GPU index |
+| `--streams`, `--sm-demand` | `4`, automatic | Stream count and optional manual demand override |
+| `--output-dir`, `--port` | `results/training`, `8501` | Shared result directory and server dashboard port |
+| `--no-ui` | Unset | Train without starting the dashboard |
+| `--exit-after-training` | Unset | Stop the dashboard when training completes |
+
+Run `python -m qusimsed.train --help` for memory, partition, scheduling-weight
+and trace options. MNIST-PCA requires dataset access or an existing cache.
+
+The launcher starts Streamlit first, checks that it is ready, then runs training.
+The dashboard uses the same output directory, so **Saved results → Refresh
+saved results** shows the CLI run and its saved results. A running record is
+visible during execution; curves and metrics become available after training
+finishes. Dashboard controls launch new experiments; they do not change a CLI
+training job already in progress. Avoid launching another GPU run while the
+CLI job is using the same GPU if you need isolated benchmark timings.
+
+On your **local computer**, keep this SSH tunnel running:
+
+```bash
+ssh -N -o ExitOnForwardFailure=yes -L 8501:127.0.0.1:8501 YOUR_USER@YOUR_GPU_SERVER
+```
+
+Open **http://localhost:8501** in your local browser. Streamlit binds only to
+the server's loopback interface; no public port needs to be opened. If your
+local 8501 port is occupied, use `-L 8502:127.0.0.1:8501` and browse localhost:8502.
+For a different server port, change `--port` and the tunnel's destination port.
+
+The dashboard remains running after training ends until Ctrl+C. Use
+`--exit-after-training` to stop it automatically or `--no-ui` for training only.
+Errors during training stop the child dashboard and remain in the automatic
+result archive when execution has begun. Server startup errors are reported
+before training; inspect `<output-dir>/streamlit.log`. Use a persistent server
+terminal such as tmux when the launcher should survive SSH disconnection.
+Streamlit must be installed in the same Python environment as the launcher.
+
+With the example above, files are stored as follows:
+
+```text
+results/training/
+├── streamlit.log
+└── experiments/<timestamp>-training-<unique-id>/
+    ├── result.json       # Configuration, status, metrics, final parameters
+    ├── summary.csv      # Training time, accuracy, errors, speedup, time savings
+    ├── errors.csv
+    ├── convergence.csv  # Training loss and duration for each epoch
+    └── timings.csv      # Empty for application runs; used by synthetic timing
+```
+
+If the page cannot be reached, verify the server printed `Dashboard ready`,
+the SSH tunnel is still running, and both port numbers match. If the launcher
+reports an occupied server port, choose another `--port`. For a missing
+Streamlit module, install it using `python -m pip install streamlit` in the
+same activated environment. The startup log is `results/training/streamlit.log`
+unless `--output-dir` was changed.
+
+For the dashboard alone and standalone diagnostics:
+
+```bash
+streamlit run app/streamlit_app.py
+
+# Dependency/trace smoke demo; this is not a VQC benchmark.
+python -m qusimsed.demo --output-dir results/demo --streams 4
+
+# CDS metadata/process-memory diagnostic, not VQC GPU-memory consumption.
+python -m qusimsed.collectors memory-demo --output results/memory/cds_memory.json
+```
+
+The UI exposes qubit count, circuit depth, trainable parameter count,
+differentiation, backend and correctness-reference selection, GPU index,
+streams, SM demand, seed, learning rate, warm-up, memory cap/safety factor,
+partition size, affinity/synchronization weights, trace recording and profiling.
+The benchmark tab adds measured iteration count. The training tab adds dataset
+(Iris, Wine, breast cancer or MNIST-PCA), training sample count and epoch count.
+Application updates are full-batch; a minibatch control is not exposed because
+the current runner does not implement it. Comparisons run all supported methods
+for the selected backend; unsupported Catalyst combinations are labeled clearly.
+
+Results show the actual saved configuration, status, method tables and selectable
+charts for errors, training time, accuracy, speedup and time savings. Synthetic
+timings have per-iteration plots; application results have loss and duration
+curves by epoch. JSON/CSV downloads, trace tables and profiling status are
+available alongside the results. The **Saved results** tab reopens automatic
+archives under the selected output directory, without rerunning an experiment.
+Changing controls does not relabel an earlier result: its original settings
+remain visible. These charts describe individual runs; launching scaling sweeps
+and plotting aggregated scaling curves are not yet UI features.
+
+The demo exports JSON/CSV traces plus SVG timeline/workflow diagrams. Its
+optional `--cuda-smoke` path runs Torch matrix multiplication for executor
+plumbing validation; use server trace mode for VQC evidence.
+
+## Supported scope and limitations
+
+The executor supports analytic unitary tapes with one expectation measurement,
+complex128 states, and dense gates/observables on up to four wires. Trainable
+gates must have one scalar parameter with an applicable shift recipe/frequency
+rule or adjoint derivative. The repository's RX/RY/RZ + CNOT ansatz is supported.
+
+State preparation operations, noisy/finite-shot circuits, parameter
+broadcasting, multi-parameter trainable gates, large dense observables, and
+Hamiltonian-sum VQE need additional adapters. The implementation uses
+host-observed per-task completion events; per-gate overhead can be substantial.
+Partitioning, more streams, or successful correctness checks do not guarantee
+a speedup.
+
+## Repository map
+
+| Path | Purpose |
+|---|---|
+| [core/cds.py](qusimsed/core/cds.py) | Records, dependency validation, topological partitioning |
+| [core/scheduler.py](qusimsed/core/scheduler.py) | Task/stream selection, memory leases, SM admission, completion traces |
+| [graph_adapter.py](qusimsed/graph_adapter.py) | PennyLane tape and Torch FX graph extraction |
+| [tape_executor.py](qusimsed/tape_executor.py) | CUDA streams/events and state-vector operations |
+| [scheduled_vqc.py](qusimsed/scheduled_vqc.py) | Executable joint graph, parameter-shift, adjoint, MSE/SGD |
+| [server_benchmark.py](qusimsed/server_benchmark.py) | GPU CLI for correctness, timing, and traces |
+| [pennylane_experiments.py](qusimsed/pennylane_experiments.py) | Backend-specific experiment matrix and independent validation |
+| [real_benchmarks.py](qusimsed/real_benchmarks.py) | Classification workloads and training comparisons |
+| [collectors.py](qusimsed/collectors.py) | Nsight and metadata-memory entry points |
+| [app/streamlit_app.py](app/streamlit_app.py) | Interactive experiment controls |
+| [tests](tests) | Scheduler, numerical, application-routing, and GPU-gated checks |
+| [Scheduling implementation](docs/SCHEDULING_IMPLEMENTATION.md) | Detailed methodology mapping and resource model |
+
+## Paper context and historical scripts
+
+The paper describes an A100 80 GB/108-SM evaluation with PennyLane, JAX, and
+Lightning-GPU and reports up to 6.24x parameter-shift speedup and 83.6% time
+reduction. Those are paper-reported results, not validated results of the
+current Torch executor. The current backend and timing scope must be named in
+any new comparison.
+
+Historical files remain available for inspecting earlier experiments:
+
+| File | Status |
+|---|---|
+| `qusimsed_merged_benchmark.py`, `qusimsed_merged_benchmark (1).py` | Full-width circuit thread-pool/`vmap` scheduling proxies with older Catalyst comparisons; do not invoke the current CDS executor |
+| `qusimsed_catalyst_benchmark (1).py` | Earlier Catalyst comparison script |
+| `qusimsed_four_config_benchmark (1).py` | Earlier block-decomposed circuit experiment; reduced state-space work can inflate apparent scheduling speedups |
+
+The old HTML cost-model console is not present in this checkout. Use the
+maintained Streamlit app for current experiment controls. The
+[experiment-review plan](docs/EXPERIMENT_REVIEW_PLAN.md) and older portions of
+the [environment guide](docs/ENVIRONMENT_AND_RUN_GUIDE.md) provide historical
+context; the implementation guide and executable method matrix define current
+support.
+
+Paper title for reference:
+
+> QuSim-Sed: Scheduling-Driven Acceleration for Hybrid Quantum-Classical Simulation on GPUs.
+> Working paper, SC'26 submission draft.

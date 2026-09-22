@@ -1,5 +1,11 @@
 # QuSim-Sed environment and run guide
 
+For the current stream-controlled VQC executor, use the commands and backend
+requirements in [Scheduling implementation](SCHEDULING_IMPLEMENTATION.md).
+The historical Lightning/proxy instructions below do not provide explicit
+CUDA-stream ownership.
+
+
 This guide separates three execution modes. Never cite a CPU-thread run as
 GPU-stream evidence.
 

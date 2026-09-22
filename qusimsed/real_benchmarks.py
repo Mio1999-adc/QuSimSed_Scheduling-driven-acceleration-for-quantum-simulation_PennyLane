@@ -14,9 +14,11 @@ from pathlib import Path
 import numpy as np
 
 from .config import ExperimentConfig
-from .pennylane_experiments import METHODS, _circuit, _device, _evaluate_method, _imports
+from .pennylane_experiments import methods_for, evaluate_expectation, circuit_for_config, _device, _evaluate_method, _imports
 from .runtime import detect_runtime
 from .validation import compare
+from .metrics import performance_metrics
+from .result_collection import collect_results
 
 
 DATASET_DESCRIPTIONS = {
@@ -62,33 +64,37 @@ def load_workload(name: str, *, qubits: int, samples: int, seed: int):
     scale = max(np.max(np.abs(x_train)), 1e-12); return x_train / scale * np.pi, x_test / scale * np.pi, y_train, y_test
 
 
-def _prediction(circuit, theta) -> float:
-    return (float(circuit(theta)) + 1) / 2
+def _prediction(circuit, theta, config) -> float:
+    return (evaluate_expectation(circuit, theta, config) + 1) / 2
 
 
 def _run_method(method: str, qml, device, config: ExperimentConfig, x_train, y_train, x_test, y_test, initial):
-    theta = initial.copy(); history = []; started = time.perf_counter()
+    theta = initial.copy(); history = []; epoch_times = []; started = time.perf_counter()
     for _ in range(config.iterations):
+        epoch_started = time.perf_counter()
         total = np.zeros_like(theta)
         for features, label in zip(x_train, y_train):
-            circuit = _circuit(qml, device, features, config.qubits, config.layers)
-            prediction = _prediction(circuit, theta)
+            circuit = circuit_for_config(qml, device, features, config)
+            prediction = _prediction(circuit, theta, config)
             # d((f+1)/2-y)^2/dtheta = (prediction-y) * df/dtheta.
-            total += (prediction - label) * _evaluate_method(method, circuit, theta, streams=config.streams)
+            total += (prediction - label) * _evaluate_method(method, circuit, theta, streams=config.streams, config=config)
         theta = theta - config.learning_rate * total / len(x_train)
-        train_predictions = np.array([_prediction(_circuit(qml, device, x, config.qubits, config.layers), theta) for x in x_train])
+        train_predictions = np.array([_prediction(circuit_for_config(qml, device, x, config), theta, config) for x in x_train])
         history.append(float(np.mean((train_predictions - y_train) ** 2)))
+        epoch_times.append(time.perf_counter() - epoch_started)
     elapsed = time.perf_counter() - started
-    test_predictions = np.array([_prediction(_circuit(qml, device, x, config.qubits, config.layers), theta) for x in x_test])
-    return {"parameters": theta, "trajectory": history, "final_loss": float(np.mean((test_predictions - y_test) ** 2)),
+    test_predictions = np.array([_prediction(circuit_for_config(qml, device, x, config), theta, config) for x in x_test])
+    return {"parameters": theta, "trajectory": history, "epoch_times_seconds": epoch_times, "final_loss": float(np.mean((test_predictions - y_test) ** 2)),
             "accuracy": float(np.mean((test_predictions >= .5) == y_test)), "training_seconds": elapsed}
 
 
+@collect_results('training')
 def run_real_benchmark(config: ExperimentConfig) -> dict:
+    config.validate()
     if config.workload not in DATASET_DESCRIPTIONS: raise ValueError("choose iris, wine, breast-cancer, or mnist-pca")
     qml, pnp = _imports(); x_train, x_test, y_train, y_test = load_workload(config.workload, qubits=config.qubits, samples=config.samples, seed=config.seed)
-    device, backend = _device(qml, config.qubits); rng = np.random.default_rng(config.seed); initial = pnp.array(rng.normal(0, .1, config.layers * config.qubits * 3), requires_grad=False)
-    outcomes = {method: _run_method(method, qml, device, config, x_train, y_train, x_test, y_test, initial) for method in METHODS}
+    device, backend = _device(qml, config.qubits, config); rng = np.random.default_rng(config.seed); initial = pnp.array(rng.normal(0, .1, config.layers * config.qubits * 3)[:config.parameter_count], requires_grad=False)
+    outcomes = {method: _run_method(method, qml, device, config, x_train, y_train, x_test, y_test, initial) for method in methods_for(config)}
     reference = outcomes["Sequential"]; rows = []
     for method, outcome in outcomes.items():
         trajectory = compare(reference["trajectory"], outcome["trajectory"])
@@ -97,9 +103,13 @@ def run_real_benchmark(config: ExperimentConfig) -> dict:
                      "trajectory_max_abs_error": trajectory.max_absolute_error, "parameters_max_abs_error": parameters.max_absolute_error,
                      "correctness_within_tolerance": trajectory.within_tolerance and parameters.within_tolerance})
     sequential = rows[0]["training_seconds"]
-    for row in rows: row["speedup_vs_sequential"] = sequential / row["training_seconds"]
+    for row in rows: row.update(performance_metrics(sequential, row["training_seconds"]))
     return {"dataset": config.workload, "dataset_description": DATASET_DESCRIPTIONS[config.workload], "backend": backend, "runtime": detect_runtime().metadata(),
-            "samples": {"train": len(x_train), "test": len(x_test), "features_after_pca": config.qubits}, "configuration": config.metadata(), "rows": rows}
+            "samples": {"train": len(x_train), "test": len(x_test), "features_after_pca": config.qubits}, "configuration": config.metadata(), "rows": rows,
+            "timing_scope": "training loop including per-epoch training-loss evaluation; excludes preprocessing and final test prediction",
+            "trajectories": {method: outcome["trajectory"] for method, outcome in outcomes.items()},
+            "epoch_times_seconds": {method: outcome["epoch_times_seconds"] for method, outcome in outcomes.items()},
+            "final_parameters": {method: np.asarray(outcome["parameters"]).tolist() for method, outcome in outcomes.items()}}
 
 
 def save_real_result(result: dict, output: str | Path) -> Path:

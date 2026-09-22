@@ -1,5 +1,6 @@
 import time
 import unittest
+import tempfile
 from pathlib import Path
 
 from qusimsed.core.cds import CDSRecord, RecordPool, TaskState
@@ -55,10 +56,11 @@ class SchedulerTests(unittest.TestCase):
         self.assertIn("process_rss_bytes", snapshot)
 
     def test_nsight_collector_writes_manifest_without_fabrication(self):
-        output = Path("results/test-nsight/profile")
-        result = collect_nsight(["python", "--version"], output)
-        self.assertTrue(output.with_suffix(".nsight.json").exists())
-        self.assertIn("collected", result)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "profile"
+            result = collect_nsight(["python", "--version"], output)
+            self.assertTrue(output.with_suffix(".nsight.json").exists())
+            self.assertIn("collected", result)
 
     def test_requested_fair_baselines_are_registered(self):
         self.assertEqual(METHODS, ("Sequential", "Batched parameter-shift", "Naive multi-stream", "QuSim-Sed"))

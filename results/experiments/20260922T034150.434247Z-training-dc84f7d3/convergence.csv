@@ -1,0 +1,5 @@
+qubits,layers,differentiation,seed,workload,execution_backend,parameters,method,epoch,training_loss,epoch_seconds
+2,1,adjoint,7,iris,torch-cpu,2,Sequential,1,0.49215917395228437,0.04032071586698294
+2,1,adjoint,7,iris,torch-cpu,2,Sequential,2,0.49215917395228437,0.030501695116981864
+2,1,adjoint,7,iris,torch-cpu,2,QuSim-Sed,1,0.49215917395228437,0.030114881927147508
+2,1,adjoint,7,iris,torch-cpu,2,QuSim-Sed,2,0.49215917395228437,0.030407435027882457

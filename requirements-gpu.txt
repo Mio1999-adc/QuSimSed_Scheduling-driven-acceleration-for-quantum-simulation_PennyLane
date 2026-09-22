@@ -3,3 +3,7 @@
 pennylane
 pennylane-lightning[gpu]
 numpy
+
+# Install a CUDA-enabled Torch wheel appropriate for the server.
+# Required by the explicit stream-owned PennyLane-tape executor.
+torch>=2.5

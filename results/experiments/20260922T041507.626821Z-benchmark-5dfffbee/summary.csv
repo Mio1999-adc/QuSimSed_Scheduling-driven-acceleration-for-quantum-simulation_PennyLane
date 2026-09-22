@@ -1,0 +1,3 @@
+qubits,layers,differentiation,seed,workload,execution_backend,parameters,method,mean_iteration_time_ms,std_iteration_time_ms,median_iteration_time_ms,min_iteration_time_ms,max_iteration_time_ms,p95_iteration_time_ms,timed_iterations,iteration_times_ms,backend,speedup_vs_sequential,time_saving_percent
+2,1,parameter-shift,7,synthetic,torch-cpu,6,Sequential,64.81862696819007,0.0,64.81862696819007,64.81862696819007,64.81862696819007,64.81862696819007,1,[64.81862696819007],torch-cpu-statevector-validation,1.0,0.0
+2,1,parameter-shift,7,synthetic,torch-cpu,6,QuSim-Sed,67.96903908252716,0.0,67.96903908252716,67.96903908252716,67.96903908252716,67.96903908252716,1,[67.96903908252716],torch-cpu-statevector-validation,0.9536493062596942,-4.860349966813038

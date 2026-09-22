@@ -1,0 +1,3 @@
+qubits,layers,differentiation,seed,workload,execution_backend,parameters,method,sample_index,elapsed_ms
+2,1,parameter-shift,7,synthetic,torch-cpu,6,Sequential,0,55.201506009325385
+2,1,parameter-shift,7,synthetic,torch-cpu,6,QuSim-Sed,0,59.04101999476552

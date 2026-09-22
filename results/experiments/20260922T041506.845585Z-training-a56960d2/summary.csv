@@ -1,0 +1,3 @@
+qubits,layers,differentiation,seed,workload,execution_backend,parameters,method,training_seconds,test_loss,test_accuracy,trajectory_max_abs_error,parameters_max_abs_error,correctness_within_tolerance,speedup_vs_sequential,time_saving_percent
+2,1,adjoint,7,iris,torch-cpu,2,Sequential,0.0768083450384438,0.49215917395228437,0.5,0.0,0.0,True,1.0,0.0
+2,1,adjoint,7,iris,torch-cpu,2,QuSim-Sed,0.0662846879567951,0.49215917395228437,0.5,0.0,0.0,True,1.158764526258434,13.70118972929497

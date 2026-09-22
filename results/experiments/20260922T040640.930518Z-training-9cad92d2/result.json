@@ -1,0 +1,108 @@
+{
+  "dataset": "iris",
+  "dataset_description": "Iris binary classification: class 0 versus class 1.",
+  "backend": "torch-cpu-statevector-validation",
+  "runtime": {
+    "nvidia_driver_visible": false,
+    "gpu_name": null,
+    "torch_cuda_usable": false,
+    "pennylane_lightning_gpu_usable": false,
+    "selected_mode": "cpu-threads",
+    "reason": "No NVIDIA GPU detected; using CPU worker threads."
+  },
+  "samples": {
+    "train": 2,
+    "test": 2,
+    "features_after_pca": 2
+  },
+  "configuration": {
+    "qubits": 2,
+    "layers": 1,
+    "differentiation": "adjoint",
+    "strategy": "qusimsed",
+    "workload": "iris",
+    "seed": 7,
+    "warmup": 1,
+    "iterations": 2,
+    "streams": 4,
+    "memory_safety_factor": 0.8,
+    "batch_size": 4,
+    "samples": 16,
+    "learning_rate": 0.05,
+    "enable_trace": true,
+    "enable_nsight": false,
+    "output_dir": "results",
+    "collect_results": true,
+    "execution_backend": "torch-cpu",
+    "gpu_device": 0,
+    "memory_budget_bytes": null,
+    "sm_demand": null,
+    "partition_size": 16,
+    "affinity_weight": 1.0,
+    "sync_weight": 1.0,
+    "trainable_parameters": 2,
+    "reference_backend": "default.qubit"
+  },
+  "rows": [
+    {
+      "method": "Sequential",
+      "training_seconds": 0.07328518317081034,
+      "test_loss": 0.49215917395228437,
+      "test_accuracy": 0.5,
+      "trajectory_max_abs_error": 0.0,
+      "parameters_max_abs_error": 0.0,
+      "correctness_within_tolerance": true,
+      "speedup_vs_sequential": 1.0,
+      "time_saving_percent": 0.0
+    },
+    {
+      "method": "QuSim-Sed",
+      "training_seconds": 0.060954700922593474,
+      "test_loss": 0.49215917395228437,
+      "test_accuracy": 0.5,
+      "trajectory_max_abs_error": 0.0,
+      "parameters_max_abs_error": 0.0,
+      "correctness_within_tolerance": true,
+      "speedup_vs_sequential": 1.202289274848143,
+      "time_saving_percent": 16.825341378321244
+    }
+  ],
+  "timing_scope": "training loop including per-epoch training-loss evaluation; excludes preprocessing and final test prediction",
+  "trajectories": {
+    "Sequential": [
+      0.49215917395228437,
+      0.49215917395228437
+    ],
+    "QuSim-Sed": [
+      0.49215917395228437,
+      0.49215917395228437
+    ]
+  },
+  "epoch_times_seconds": {
+    "Sequential": [
+      0.04108666209504008,
+      0.03219667007215321
+    ],
+    "QuSim-Sed": [
+      0.030454089865088463,
+      0.03049871395342052
+    ]
+  },
+  "final_parameters": {
+    "Sequential": [
+      0.00012301533574825743,
+      0.02987455375084699
+    ],
+    "QuSim-Sed": [
+      0.00012301533574825743,
+      0.02987455375084699
+    ]
+  },
+  "collection": {
+    "directory": "/home/hpclab-lananh/QuSimSed_Scheduling-driven-acceleration-for-quantum-simulation_PennyLane/results/experiments/20260922T040640.930518Z-training-9cad92d2",
+    "result": "/home/hpclab-lananh/QuSimSed_Scheduling-driven-acceleration-for-quantum-simulation_PennyLane/results/experiments/20260922T040640.930518Z-training-9cad92d2/result.json"
+  },
+  "run_kind": "training",
+  "status": "completed",
+  "validation_scope": "trajectory and parameters versus Sequential"
+}
