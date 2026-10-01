@@ -19,6 +19,42 @@ resource admission, and application training. **GPU-server kernel overlap,
 resource calibration, and performance still require validation.** The paper's
 reported speedups are not measurements of this new executor.
 
+## Current experiment protocol
+
+The study is restricted to **Synthetic, Iris, and MNIST-PCA** (MNIST digits
+3 versus 5). Wine and breast-cancer loaders remain available in the software
+but are outside the current experiment scope.
+
+| Setting | Study configuration |
+|---|---|
+| GPU | NVIDIA A100 80 GB (108 SMs) |
+| Workloads | Synthetic, Iris (classes 0/1), MNIST-PCA (digits 3/5) |
+| Differentiation | Parameter-shift and Adjoint |
+| Training epochs | 100 |
+| Training sample presentations per epoch | 1,000 |
+| Total training sample presentations | 100,000 per configuration |
+
+The sample count refers to **presentations per epoch**, not necessarily unique
+examples, and is separate from the parameter-shift batch size and benchmark
+warm-up/timing repetitions. Use identical sampling and preprocessing for every
+method in a comparison.
+
+**Implementation caveat:** the current real-data loader treats `samples` as a
+cap on unique training examples. Binary Iris has only 80 training examples
+after the existing 80/20 split, so `--samples 1000` currently loads 80, not
+1,000 presentations. Reproducible training-only resampling/repetition must be
+implemented and recorded before claiming this protocol was executed on Iris.
+The current synthetic benchmark times repeated steps from the same initial
+parameters; it does not implement a 100-epoch, 1,000-sample training loop.
+Report its timing scope separately until that protocol is implemented.
+These settings specify the study protocol, not evidence of completed runs.
+
+Small examples and CLI defaults elsewhere are smoke-test configurations,
+not the study settings. The maintained Streamlit interface configures real-device
+experiments and displays collected results; locally excluded simulation-preview
+code and generated estimates are not part of the published experiment interface.
+
+
 ## Current features
 
 | Feature | Implemented behavior |
@@ -394,8 +430,8 @@ loss-trajectory deviations from Sequential.
 | Workload key | Task |
 |---|---|
 | `iris` | Iris classes 0 versus 1 |
-| `wine` | Wine classes 0 versus 1 |
-| `breast-cancer` | Binary diagnostic classification |
+| `wine` | Available loader; outside current study |
+| `breast-cancer` | Available loader; outside current study |
 | `mnist-pca` | MNIST digits 3 versus 5, reduced to qubit-sized features |
 
 A stratified 80/20 split precedes scaling and PCA; preprocessing is fitted on
@@ -655,7 +691,7 @@ differentiation, backend and correctness-reference selection, GPU index,
 streams, SM demand, seed, learning rate, warm-up, memory cap/safety factor,
 partition size, affinity/synchronization weights, trace recording and profiling.
 The benchmark tab adds measured iteration count. The training tab adds dataset
-(Iris, Wine, breast cancer or MNIST-PCA), training sample count and epoch count.
+(Iris or MNIST-PCA for the current study), training sample count and epoch count.
 Application updates are full-batch; a minibatch control is not exposed because
 the current runner does not implement it. Comparisons run all supported methods
 for the selected backend; unsupported Catalyst combinations are labeled clearly.

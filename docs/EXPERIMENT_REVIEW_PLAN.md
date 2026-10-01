@@ -1,5 +1,41 @@
 # Experiment revision plan
 
+## Current experiment protocol
+
+The study is restricted to **Synthetic, Iris, and MNIST-PCA** (MNIST digits
+3 versus 5). Wine and breast-cancer loaders remain available in the software
+but are outside the current experiment scope.
+
+| Setting | Study configuration |
+|---|---|
+| GPU | NVIDIA A100 80 GB (108 SMs) |
+| Workloads | Synthetic, Iris (classes 0/1), MNIST-PCA (digits 3/5) |
+| Differentiation | Parameter-shift and Adjoint |
+| Training epochs | 100 |
+| Training sample presentations per epoch | 1,000 |
+| Total training sample presentations | 100,000 per configuration |
+
+The sample count refers to **presentations per epoch**, not necessarily unique
+examples, and is separate from the parameter-shift batch size and benchmark
+warm-up/timing repetitions. Use identical sampling and preprocessing for every
+method in a comparison.
+
+**Implementation caveat:** the current real-data loader treats `samples` as a
+cap on unique training examples. Binary Iris has only 80 training examples
+after the existing 80/20 split, so `--samples 1000` currently loads 80, not
+1,000 presentations. Reproducible training-only resampling/repetition must be
+implemented and recorded before claiming this protocol was executed on Iris.
+The current synthetic benchmark times repeated steps from the same initial
+parameters; it does not implement a 100-epoch, 1,000-sample training loop.
+Report its timing scope separately until that protocol is implemented.
+These settings specify the study protocol, not evidence of completed runs.
+
+Small examples and CLI defaults elsewhere are smoke-test configurations,
+not the study settings. The maintained Streamlit interface configures real-device
+experiments and displays collected results; locally excluded simulation-preview
+code and generated estimates are not part of the published experiment interface.
+
+
 This document addresses the experiment reviews on slides 6-7. It does not
 claim results before they are collected on a supported GPU.
 
@@ -11,7 +47,7 @@ claim results before they are collected on a supported GPU.
 | Strong baselines | sequential, batched parameter-shift, naive multi-stream, QuSim-Sed on identical VQC | `pennylane_experiments.baseline_experiment` | timing CSV + Streamlit chart | implemented; requires PennyLane to collect |
 | Scheduler clarity | dependency/resource/dispatch/completion workflow | `visualization.scheduler_workflow_svg` | workflow SVG | implemented |
 | CDS overhead | measured deep size of CDS/scheduler metadata | `qusimsed.memory` | memory CSV/plot | implemented |
-| Real workload | Iris, Wine, Breast Cancer, and PCA-MNIST: time, loss, accuracy, convergence/correctness | `real_benchmarks.run_real_benchmark` | training CSV + Streamlit charts | implemented; requires scikit-learn + PennyLane |
+| Real workload | Iris and PCA-MNIST: time, loss, accuracy, convergence/correctness; Synthetic for controlled VQC timing | `real_benchmarks.run_real_benchmark` | training CSV + Streamlit charts | implemented; requires scikit-learn + PennyLane |
 | >30 qubits | safe sweep with observed OOM status and peak VRAM | configuration + CUDA executor | scalability CSV/plot | pending supported GPU |
 
 ## Exact commands

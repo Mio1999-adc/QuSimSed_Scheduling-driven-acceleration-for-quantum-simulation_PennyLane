@@ -1,5 +1,41 @@
 # Scheduling implementation and GPU-server validation
 
+## Current experiment protocol
+
+The study is restricted to **Synthetic, Iris, and MNIST-PCA** (MNIST digits
+3 versus 5). Wine and breast-cancer loaders remain available in the software
+but are outside the current experiment scope.
+
+| Setting | Study configuration |
+|---|---|
+| GPU | NVIDIA A100 80 GB (108 SMs) |
+| Workloads | Synthetic, Iris (classes 0/1), MNIST-PCA (digits 3/5) |
+| Differentiation | Parameter-shift and Adjoint |
+| Training epochs | 100 |
+| Training sample presentations per epoch | 1,000 |
+| Total training sample presentations | 100,000 per configuration |
+
+The sample count refers to **presentations per epoch**, not necessarily unique
+examples, and is separate from the parameter-shift batch size and benchmark
+warm-up/timing repetitions. Use identical sampling and preprocessing for every
+method in a comparison.
+
+**Implementation caveat:** the current real-data loader treats `samples` as a
+cap on unique training examples. Binary Iris has only 80 training examples
+after the existing 80/20 split, so `--samples 1000` currently loads 80, not
+1,000 presentations. Reproducible training-only resampling/repetition must be
+implemented and recorded before claiming this protocol was executed on Iris.
+The current synthetic benchmark times repeated steps from the same initial
+parameters; it does not implement a 100-epoch, 1,000-sample training loop.
+Report its timing scope separately until that protocol is implemented.
+These settings specify the study protocol, not evidence of completed runs.
+
+Small examples and CLI defaults elsewhere are smoke-test configurations,
+not the study settings. The maintained Streamlit interface configures real-device
+experiments and displays collected results; locally excluded simulation-preview
+code and generated estimates are not part of the published experiment interface.
+
+
 For proposed manuscript replacements of Algorithms 1 and 2, resource equations,
 the exact selection score, and objective-function corrections, see
 [Methodology algorithm revision](METHODOLOGY_ALGORITHM_REVISION.md).
