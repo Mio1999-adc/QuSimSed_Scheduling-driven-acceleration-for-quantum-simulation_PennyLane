@@ -1,5 +1,9 @@
 # Scheduling implementation and GPU-server validation
 
+For proposed manuscript replacements of Algorithms 1 and 2, resource equations,
+the exact selection score, and objective-function corrections, see
+[Methodology algorithm revision](METHODOLOGY_ALGORITHM_REVISION.md).
+
 The maintained entry point is `python -m qusimsed.server_benchmark`. The older
 `qusimsed_merged_benchmark*.py` files remain historical thread/vmap proxies;
 they do not invoke this implementation.

@@ -46,6 +46,8 @@ this backend. Arbitrary internal JAX or PennyLane Autograd graphs and classical
 Jacobians for shared/transformed QNode arguments are outside the adapter's scope.
 See [Scheduling implementation](docs/SCHEDULING_IMPLEMENTATION.md) for the
 algorithm, memory model, and execution contract.
+Proposed paper updates, including revised Algorithms 1/2 and the scheduling
+objective, are in [Methodology algorithm revision](docs/METHODOLOGY_ALGORITHM_REVISION.md).
 
 ## Execution backends and available comparisons
 
